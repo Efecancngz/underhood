@@ -847,16 +847,12 @@ void TemplateModule::render(underhood::Canvas& canvas) const {
 
 - [ ] **Step 4: Write `modules/CMakeLists.txt`**
 
+`unique_ptr/`, `shared_ptr/`, and `move_semantics/` don't exist yet (Tasks 8–10 create them) — do NOT add `add_subdirectory()` calls for them here. Doing so now would break `cmake` configure until those tasks land, since `add_subdirectory()` errors on a missing directory even inside a false `if()` branch's sibling code is fine, but an enabled option pointing at a nonexistent folder is not. Each of Tasks 8, 9, and 10 appends its own guarded `add_subdirectory()` block to this file once its folder exists.
+
 ```cmake
-if(BUILD_MODULE_UNIQUE_PTR)
-  add_subdirectory(unique_ptr)
-endif()
-if(BUILD_MODULE_SHARED_PTR)
-  add_subdirectory(shared_ptr)
-endif()
-if(BUILD_MODULE_MOVE_SEMANTICS)
-  add_subdirectory(move_semantics)
-endif()
+# Real module subdirectories are added here by the task that creates each
+# one (see Tasks 8-10 in the implementation plan) — this file starts empty
+# on purpose.
 ```
 
 - [ ] **Step 5: Modify root `CMakeLists.txt`** — add the module options near the top (after `set(CMAKE_CXX_STANDARD_REQUIRED ON)`) and `add_subdirectory(modules)` after `add_subdirectory(core)`:
@@ -923,6 +919,7 @@ git commit -m "docs: add module template and contribution guide"
 - Create: `modules/unique_ptr/unique_ptr_module.hpp`
 - Create: `modules/unique_ptr/unique_ptr_module.cpp`
 - Create: `modules/unique_ptr/CMakeLists.txt`
+- Modify: `modules/CMakeLists.txt` (add the guarded `add_subdirectory(unique_ptr)` block)
 - Create: `tests/test_unique_ptr_module.cpp`
 - Modify: `tests/CMakeLists.txt` (add test file + link module target)
 
@@ -1106,7 +1103,15 @@ target_include_directories(underhood_module_unique_ptr PUBLIC ${CMAKE_CURRENT_SO
 target_link_libraries(underhood_module_unique_ptr PUBLIC underhood_core)
 ```
 
-- [ ] **Step 6: Modify `tests/CMakeLists.txt`**
+- [ ] **Step 6: Modify `modules/CMakeLists.txt`** — replace the placeholder comment with:
+
+```cmake
+if(BUILD_MODULE_UNIQUE_PTR)
+  add_subdirectory(unique_ptr)
+endif()
+```
+
+- [ ] **Step 7: Modify `tests/CMakeLists.txt`**
 
 ```cmake
 add_executable(underhood_tests
@@ -1125,7 +1130,7 @@ include(Catch)
 catch_discover_tests(underhood_tests)
 ```
 
-- [ ] **Step 7: Run tests to verify they pass**
+- [ ] **Step 8: Run tests to verify they pass**
 
 Run:
 ```bash
@@ -1135,10 +1140,10 @@ ctest --test-dir build --output-on-failure
 ```
 Expected: all tests pass, including the two new `UniquePtrModule` tests.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add modules/unique_ptr tests/test_unique_ptr_module.cpp tests/CMakeLists.txt
+git add modules/unique_ptr modules/CMakeLists.txt tests/test_unique_ptr_module.cpp tests/CMakeLists.txt
 git commit -m "feat: add unique_ptr simulation module"
 ```
 
@@ -1150,6 +1155,7 @@ git commit -m "feat: add unique_ptr simulation module"
 - Create: `modules/shared_ptr/shared_ptr_module.hpp`
 - Create: `modules/shared_ptr/shared_ptr_module.cpp`
 - Create: `modules/shared_ptr/CMakeLists.txt`
+- Modify: `modules/CMakeLists.txt` (append the guarded `add_subdirectory(shared_ptr)` block)
 - Create: `tests/test_shared_ptr_module.cpp`
 - Modify: `tests/CMakeLists.txt`
 
@@ -1339,7 +1345,15 @@ target_include_directories(underhood_module_shared_ptr PUBLIC ${CMAKE_CURRENT_SO
 target_link_libraries(underhood_module_shared_ptr PUBLIC underhood_core)
 ```
 
-- [ ] **Step 6: Modify `tests/CMakeLists.txt`**
+- [ ] **Step 6: Modify `modules/CMakeLists.txt`** — append below the `unique_ptr` block Task 8 added:
+
+```cmake
+if(BUILD_MODULE_SHARED_PTR)
+  add_subdirectory(shared_ptr)
+endif()
+```
+
+- [ ] **Step 7: Modify `tests/CMakeLists.txt`**
 
 ```cmake
 add_executable(underhood_tests
@@ -1360,7 +1374,7 @@ include(Catch)
 catch_discover_tests(underhood_tests)
 ```
 
-- [ ] **Step 7: Run tests to verify they pass**
+- [ ] **Step 8: Run tests to verify they pass**
 
 Run:
 ```bash
@@ -1370,10 +1384,10 @@ ctest --test-dir build --output-on-failure
 ```
 Expected: all tests pass, including the new `SharedPtrModule` test.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add modules/shared_ptr tests/test_shared_ptr_module.cpp tests/CMakeLists.txt
+git add modules/shared_ptr modules/CMakeLists.txt tests/test_shared_ptr_module.cpp tests/CMakeLists.txt
 git commit -m "feat: add shared_ptr simulation module"
 ```
 
@@ -1385,6 +1399,7 @@ git commit -m "feat: add shared_ptr simulation module"
 - Create: `modules/move_semantics/move_semantics_module.hpp`
 - Create: `modules/move_semantics/move_semantics_module.cpp`
 - Create: `modules/move_semantics/CMakeLists.txt`
+- Modify: `modules/CMakeLists.txt` (append the guarded `add_subdirectory(move_semantics)` block)
 - Create: `tests/test_move_semantics_module.cpp`
 - Modify: `tests/CMakeLists.txt`
 
@@ -1553,7 +1568,15 @@ target_include_directories(underhood_module_move_semantics PUBLIC ${CMAKE_CURREN
 target_link_libraries(underhood_module_move_semantics PUBLIC underhood_core)
 ```
 
-- [ ] **Step 6: Modify `tests/CMakeLists.txt`**
+- [ ] **Step 6: Modify `modules/CMakeLists.txt`** — append below the `unique_ptr`/`shared_ptr` blocks Tasks 8–9 added:
+
+```cmake
+if(BUILD_MODULE_MOVE_SEMANTICS)
+  add_subdirectory(move_semantics)
+endif()
+```
+
+- [ ] **Step 7: Modify `tests/CMakeLists.txt`**
 
 ```cmake
 add_executable(underhood_tests
@@ -1576,7 +1599,7 @@ include(Catch)
 catch_discover_tests(underhood_tests)
 ```
 
-- [ ] **Step 7: Run tests to verify they pass**
+- [ ] **Step 8: Run tests to verify they pass**
 
 Run:
 ```bash
@@ -1586,10 +1609,10 @@ ctest --test-dir build --output-on-failure
 ```
 Expected: all tests pass, including the new `MoveSemanticsModule` test.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add modules/move_semantics tests/test_move_semantics_module.cpp tests/CMakeLists.txt
+git add modules/move_semantics modules/CMakeLists.txt tests/test_move_semantics_module.cpp tests/CMakeLists.txt
 git commit -m "feat: add move_semantics simulation module"
 ```
 
