@@ -1,1 +1,9 @@
-.worktrees/
+build/
+build-*/
+CMakeCache.txt
+CMakeFiles/
+*.obj
+*.o
+.vs/
+.vscode/
+*.user
