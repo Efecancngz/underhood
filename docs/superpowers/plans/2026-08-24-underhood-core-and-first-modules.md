@@ -584,6 +584,8 @@ git commit -m "feat: add ModuleRegistry as a Meyers' singleton with tests"
 
 No new tests in this task — it's pure dependency wiring. Verified by building a throwaway smoke check in Step 3 below (not committed as a permanent file), then by the launcher actually running in Task 11.
 
+`imgui_src` is pinned to the `docking` branch, not a fixed release tag: `rlImGui` (pinned to `main`) is developed and tested against Dear ImGui's `docking` branch tip, not against numbered release tags, which trail behind it. Pinning `imgui_src` to an older tagged release (e.g. `v1.91.0`) breaks the build against current `rlImGui@main` — it references APIs (`ImGui::GetPlatformIO()`, `ImGuiBackendFlags_RendererHasTextures`, a newer `ImTextureID` shape) that only exist in `docking`. This is a moving target rather than a pinned commit, which is a deliberate trade-off for this hobby/portfolio-scale project: acceptable because `rlImGui`'s own compatibility promise is "current main tracks current docking," not "works with any numbered imgui release."
+
 - [ ] **Step 1: Modify root `CMakeLists.txt`** — insert the following block after the Catch2 `FetchContent_MakeAvailable(catch2)` call and before `add_subdirectory(core)`:
 
 ```cmake
@@ -598,7 +600,7 @@ FetchContent_MakeAvailable(raylib)
 FetchContent_Declare(
   imgui_src
   GIT_REPOSITORY https://github.com/ocornut/imgui.git
-  GIT_TAG v1.91.0
+  GIT_TAG docking
 )
 FetchContent_MakeAvailable(imgui_src)
 
