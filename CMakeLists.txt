@@ -13,5 +13,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(catch2)
 
+add_subdirectory(core)
+
 enable_testing()
 add_subdirectory(tests)
