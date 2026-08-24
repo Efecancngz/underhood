@@ -1,0 +1,3 @@
+add_library(underhood_module_shared_ptr OBJECT shared_ptr_module.cpp)
+target_include_directories(underhood_module_shared_ptr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(underhood_module_shared_ptr PUBLIC underhood_core)
