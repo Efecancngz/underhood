@@ -4,6 +4,10 @@ project(underhood CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(BUILD_MODULE_UNIQUE_PTR "Build the unique_ptr simulation module" ON)
+option(BUILD_MODULE_SHARED_PTR "Build the shared_ptr simulation module" ON)
+option(BUILD_MODULE_MOVE_SEMANTICS "Build the move_semantics simulation module" ON)
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -48,6 +52,7 @@ target_include_directories(rlImGui PUBLIC ${rlimgui_src_SOURCE_DIR})
 target_link_libraries(rlImGui PUBLIC raylib imgui)
 
 add_subdirectory(core)
+add_subdirectory(modules)
 
 enable_testing()
 add_subdirectory(tests)
