@@ -29,30 +29,19 @@ bool StackModule::canPerform(const std::string& operationLabel) const {
     return false;
 }
 
-namespace {
-constexpr std::size_t kMaxHistoryEntries = 10;
-
-void appendHistory(std::vector<std::string>& history, std::string entry) {
-    history.push_back(std::move(entry));
-    if (history.size() > kMaxHistoryEntries) {
-        history.erase(history.begin());
-    }
-}
-}  // namespace
-
 void StackModule::performOperation(const std::string& operationLabel, int value) {
     if (operationLabel == "Push" && !entries_.full(kMaxSize)) {
         entries_.insertAt(entries_.size(), value);
-        appendHistory(history_, "Push " + std::to_string(value));
+        history_.append("Push " + std::to_string(value));
     } else if (operationLabel == "Pop" && !entries_.empty()) {
         int poppedValue = entries_.entries().back().value;
         entries_.removeAt(entries_.size() - 1);
-        appendHistory(history_, "Pop -> " + std::to_string(poppedValue));
+        history_.append("Pop -> " + std::to_string(poppedValue));
     }
 }
 
 std::vector<std::string> StackModule::history() const {
-    return history_;
+    return history_.entries();
 }
 
 void StackModule::update(float deltaTime) {

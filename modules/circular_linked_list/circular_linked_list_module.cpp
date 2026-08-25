@@ -30,30 +30,19 @@ bool CircularLinkedListModule::canPerform(const std::string& operationLabel) con
     return false;
 }
 
-namespace {
-constexpr std::size_t kMaxHistoryEntries = 10;
-
-void appendHistory(std::vector<std::string>& history, std::string entry) {
-    history.push_back(std::move(entry));
-    if (history.size() > kMaxHistoryEntries) {
-        history.erase(history.begin());
-    }
-}
-}  // namespace
-
 void CircularLinkedListModule::performOperation(const std::string& operationLabel, int value) {
     if (operationLabel == "Insert" && !entries_.full(kMaxSize)) {
         entries_.insertAt(entries_.size(), value);  // always appends to the back
-        appendHistory(history_, "Insert " + std::to_string(value));
+        history_.append("Insert " + std::to_string(value));
     } else if (operationLabel == "Delete Front" && !entries_.empty()) {
         int frontVal = entries_.entries().front().value;
         entries_.removeAt(0);
-        appendHistory(history_, "Delete Front -> " + std::to_string(frontVal));
+        history_.append("Delete Front -> " + std::to_string(frontVal));
     }
 }
 
 std::vector<std::string> CircularLinkedListModule::history() const {
-    return history_;
+    return history_.entries();
 }
 
 void CircularLinkedListModule::update(float deltaTime) {
@@ -84,8 +73,14 @@ void CircularLinkedListModule::render(underhood::Canvas& canvas) const {
     int cellWidth = kAvailableWidth / static_cast<int>(std::max<std::size_t>(slots, 1));
     int boxWidth = cellWidth > 20 ? cellWidth - 15 : cellWidth;
 
-    auto drawEntry = [&](const underhood::AnimatedList<int>::Entry& entry, std::size_t visualIndex) {
-        float progress = entry.insertAnim.progress();
+    auto drawEntry = [&](const underhood::AnimatedList<int>::Entry& entry, std::size_t visualIndex,
+                          bool isRemoving) {
+        // A removing entry shares insertAnim with a fresh insert (see
+        // AnimatedList::removeAt), so its progress() also runs 0->1 --
+        // inverting it here makes the departing box start fully "arrived"
+        // and animate OUT, instead of animating back IN on top of whatever
+        // now occupies its old slot (visual index 0, the new front).
+        float progress = isRemoving ? 1.0f - entry.insertAnim.progress() : entry.insertAnim.progress();
         int x = kBaseX + static_cast<int>(visualIndex) * cellWidth;
         int dropOffset = static_cast<int>((1.0f - progress) * 30.0f);
         underhood::BoxState state =
@@ -94,7 +89,7 @@ void CircularLinkedListModule::render(underhood::Canvas& canvas) const {
     };
 
     for (std::size_t i = 0; i < entries.size(); ++i) {
-        drawEntry(entries[i], i);
+        drawEntry(entries[i], i, /*isRemoving=*/false);
         if (i + 1 < entries.size()) {
             int arrowStartX = kBaseX + static_cast<int>(i) * cellWidth + boxWidth;
             int arrowY = kBaseY + kBoxHeight / 2;
@@ -103,7 +98,7 @@ void CircularLinkedListModule::render(underhood::Canvas& canvas) const {
         }
     }
     if (const auto* removing = entries_.removingEntry()) {
-        drawEntry(*removing, 0);
+        drawEntry(*removing, 0, /*isRemoving=*/true);
     }
 
     // v1 simplification: the wrap-around is a straight line to the first

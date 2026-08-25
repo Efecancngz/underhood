@@ -6,6 +6,7 @@
 
 #include "underhood/animated_list.hpp"
 #include "underhood/canvas.hpp"
+#include "underhood/operation_history.hpp"
 #include "underhood/simulation_module.hpp"
 
 namespace underhood::modules {
@@ -30,7 +31,7 @@ public:
 private:
     static constexpr std::size_t kMaxSize = 8;
     underhood::AnimatedList<int> entries_;
-    std::vector<std::string> history_;
+    underhood::OperationHistory history_;
 };
 
 }  // namespace underhood::modules

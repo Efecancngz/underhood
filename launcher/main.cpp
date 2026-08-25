@@ -43,6 +43,13 @@ Camera2D letterboxCamera(int textureWidth, int textureHeight) {
     return camera;
 }
 
+// Mirrors theme.cpp's internal ToImVec4 (Color 0-255 -> ImVec4 0-1) so the
+// Code panel's "just changed" highlight can read the real active-theme
+// accent instead of a hardcoded literal -- see DrawCodePanel.
+ImVec4 ToImVec4(Color c) {
+    return ImVec4(c.r / 255.0f, c.g / 255.0f, c.b / 255.0f, 1.0f);
+}
+
 const char* kModulesPanel = "Modules";
 const char* kCodePanel = "Code";
 const char* kControlsPanel = "Controls";
@@ -114,7 +121,7 @@ void DrawModulesPanel(const std::string& activeModuleName, bool& moduleClickedOu
     ImGui::End();
 }
 
-void DrawCodePanel(const underhood::ISimulationModule* module) {
+void DrawCodePanel(const underhood::ISimulationModule* module, const underhood::Palette& palette) {
     ImGui::Begin(kCodePanel);
     if (module == nullptr) {
         ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled],
@@ -125,9 +132,10 @@ void DrawCodePanel(const underhood::ISimulationModule* module) {
         for (std::size_t i = 0; i < lines.size(); ++i) {
             int lineNumber = static_cast<int>(i) + 1;
             if (lineNumber == stepModule->currentHighlightedLine()) {
-                // Amber, matching Canvas's JustChanged box color -- the same
-                // color means "this is what just happened" in both panels.
-                ImGui::TextColored(ImVec4(0.90f, 0.62f, 0.0f, 1.0f), "%s", lines[i].c_str());
+                // Matches Canvas's JustChanged box color for the active
+                // theme (accentJustChanged) -- the same color means "this
+                // is what just happened" in both panels, in both themes.
+                ImGui::TextColored(ToImVec4(palette.accentJustChanged), "%s", lines[i].c_str());
             } else {
                 ImGui::Text("%s", lines[i].c_str());
             }
@@ -307,7 +315,7 @@ int main() {
             underhood::ApplyTheme(!lightTheme);
             canvas.setDarkTheme(!lightTheme);
         }
-        if (moduleClicked) {
+        if (moduleClicked && clickedModuleName != activeModuleName) {
             activeModule = underhood::ModuleRegistry::instance().create(clickedModuleName);
             activeModuleName = clickedModuleName;
             pendingValue = 0;
@@ -320,7 +328,7 @@ int main() {
             }
         }
 
-        DrawCodePanel(activeModule.get());
+        DrawCodePanel(activeModule.get(), palette);
 
         bool resetRequested = false;
         bool stepRequested = false;
