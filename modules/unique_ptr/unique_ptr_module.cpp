@@ -92,9 +92,9 @@ std::optional<int> UniquePtrModule::currentValue() const {
 namespace {
 struct UniquePtrRegistrar {
     UniquePtrRegistrar() {
-        underhood::ModuleRegistry::instance().registerModule("unique_ptr", []() {
-            return std::make_unique<underhood::modules::UniquePtrModule>();
-        });
+        underhood::ModuleRegistry::instance().registerModule(
+            "unique_ptr", []() { return std::make_unique<underhood::modules::UniquePtrModule>(); },
+            "Smart Pointers");
     }
 };
 const UniquePtrRegistrar uniquePtrRegistrar;

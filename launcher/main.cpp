@@ -1,3 +1,4 @@
+#include <cctype>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -87,15 +88,22 @@ void BuildInitialLayout(ImGuiID dockspaceId) {
 void DrawModulesPanel(const std::string& activeModuleName, bool& moduleClickedOut,
                        std::string& clickedModuleName, bool& lightTheme, bool& themeChanged) {
     ImGui::Begin(kModulesPanel);
-    ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], "SIMULATIONS");
-    ImGui::Spacing();
 
-    for (const auto& moduleName : underhood::ModuleRegistry::instance().moduleNames()) {
-        bool selected = (moduleName == activeModuleName);
-        if (ImGui::Selectable(moduleName.c_str(), selected, 0, ImVec2(0, 36))) {
-            moduleClickedOut = true;
-            clickedModuleName = moduleName;
+    for (const auto& category : underhood::ModuleRegistry::instance().categories()) {
+        std::string header = category.name;
+        for (auto& c : header) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], "%s", header.c_str());
+        ImGui::Spacing();
+
+        for (const auto& moduleName : category.moduleNames) {
+            bool selected = (moduleName == activeModuleName);
+            if (ImGui::Selectable(moduleName.c_str(), selected, 0, ImVec2(0, 36))) {
+                moduleClickedOut = true;
+                clickedModuleName = moduleName;
+            }
         }
+        ImGui::Spacing();
+        ImGui::Spacing();
     }
 
     ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 50.0f);
@@ -137,7 +145,9 @@ void DrawControlsPanel(std::vector<underhood::Parameter>& params, bool hasActive
     }
 
     for (auto& param : params) {
-        ImGui::SliderInt(param.name.c_str(), &param.value, param.minValue, param.maxValue);
+        ImGui::InputInt(param.name.c_str(), &param.value);
+        if (param.value < param.minValue) param.value = param.minValue;
+        if (param.value > param.maxValue) param.value = param.maxValue;
     }
     ImGui::Spacing();
     if (ImGui::Button("Reset", ImVec2(-1, 0))) {

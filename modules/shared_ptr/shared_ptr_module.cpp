@@ -116,9 +116,9 @@ bool SharedPtrModule::bAlive() const {
 namespace {
 struct SharedPtrRegistrar {
     SharedPtrRegistrar() {
-        underhood::ModuleRegistry::instance().registerModule("shared_ptr", []() {
-            return std::make_unique<underhood::modules::SharedPtrModule>();
-        });
+        underhood::ModuleRegistry::instance().registerModule(
+            "shared_ptr", []() { return std::make_unique<underhood::modules::SharedPtrModule>(); },
+            "Smart Pointers");
     }
 };
 const SharedPtrRegistrar sharedPtrRegistrar;

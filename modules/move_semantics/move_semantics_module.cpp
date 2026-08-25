@@ -94,9 +94,10 @@ std::optional<int> MoveSemanticsModule::r2Value() const {
 namespace {
 struct MoveSemanticsRegistrar {
     MoveSemanticsRegistrar() {
-        underhood::ModuleRegistry::instance().registerModule("move_semantics", []() {
-            return std::make_unique<underhood::modules::MoveSemanticsModule>();
-        });
+        underhood::ModuleRegistry::instance().registerModule(
+            "move_semantics",
+            []() { return std::make_unique<underhood::modules::MoveSemanticsModule>(); },
+            "Smart Pointers");
     }
 };
 const MoveSemanticsRegistrar moveSemanticsRegistrar;
