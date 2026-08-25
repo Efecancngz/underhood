@@ -74,9 +74,12 @@ void ApplyTheme(bool dark) {
     colors[ImGuiCol_Button] = ToImVec4(p.surfaceRaised);
     colors[ImGuiCol_ButtonHovered] = ToImVec4(p.border);
     colors[ImGuiCol_ButtonActive] = ToImVec4(p.accentOwned);
-    colors[ImGuiCol_Header] = ToImVec4(p.surfaceRaised);
-    colors[ImGuiCol_HeaderHovered] = ToImVec4(p.border);
-    colors[ImGuiCol_HeaderActive] = ToImVec4(p.accentOwned);
+    // Header drives Selectable's "selected" background (the sidebar's active
+    // module) -- tinted with the same teal used for BoxState::Owned, so
+    // "this is the active one" reads the same way in the sidebar and canvas.
+    colors[ImGuiCol_Header] = ToImVec4(p.accentOwned, 0.30f);
+    colors[ImGuiCol_HeaderHovered] = ToImVec4(p.accentOwned, 0.16f);
+    colors[ImGuiCol_HeaderActive] = ToImVec4(p.accentOwned, 0.45f);
     colors[ImGuiCol_Separator] = ToImVec4(p.border);
     colors[ImGuiCol_SeparatorHovered] = ToImVec4(p.accentOwned);
     colors[ImGuiCol_SeparatorActive] = ToImVec4(p.accentOwned);
@@ -113,6 +116,10 @@ void ApplyTheme(bool dark) {
     style.ChildBorderSize = 1.0f;
     style.PopupBorderSize = 1.0f;
     style.GrabMinSize = 10.0f;
+    // Removes the small collapse/docking-menu triangle from every panel's
+    // tab/title bar -- pure default-ImGui chrome, no purpose in a fixed
+    // 4-panel layout the user never collapses or re-docks by hand.
+    style.WindowMenuButtonPosition = ImGuiDir_None;
 }
 
 }  // namespace underhood

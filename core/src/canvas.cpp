@@ -19,8 +19,8 @@ Color accentFor(BoxState state, const Palette& p) {
     return p.accentEmpty;
 }
 
-constexpr float kBoxCornerRadius = 0.18f;  // roundness param for DrawRectangleRounded
-constexpr int kLabelFontSize = 17;
+constexpr float kBoxCornerRadius = 0.25f;  // roundness param for DrawRectangleRounded
+constexpr int kLabelFontSize = 18;
 
 }  // namespace
 
@@ -43,11 +43,12 @@ void Canvas::drawBox(int x, int y, int width, int height, const std::string& lab
     Rectangle rect{static_cast<float>(x), static_cast<float>(y), static_cast<float>(width),
                    static_cast<float>(height)};
 
-    // Card look: filled surface, a thin accent-colored border carrying the
-    // semantic state (gray/teal/amber), matching the panel chrome around it
-    // instead of a bare outline floating on the raw background.
-    DrawRectangleRounded(rect, kBoxCornerRadius, 8, p.surface);
-    DrawRectangleRoundedLinesEx(rect, kBoxCornerRadius, 8, 2.0f, accent);
+    // Card look: filled surface (raised, so it reads against the near-black
+    // canvas background) with a thicker accent-colored border carrying the
+    // semantic state (gray/teal/amber), instead of a bare outline floating
+    // on the raw background.
+    DrawRectangleRounded(rect, kBoxCornerRadius, 12, p.surfaceRaised);
+    DrawRectangleRoundedLinesEx(rect, kBoxCornerRadius, 12, 2.5f, accent);
 
     if (font_.texture.id != 0) {
         DrawTextEx(font_, label.c_str(), Vector2{static_cast<float>(x + 10), static_cast<float>(y + 10)},

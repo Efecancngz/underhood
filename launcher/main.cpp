@@ -71,7 +71,7 @@ void DrawModulesPanel(const std::string& activeModuleName, bool& moduleClickedOu
 
     for (const auto& moduleName : underhood::ModuleRegistry::instance().moduleNames()) {
         bool selected = (moduleName == activeModuleName);
-        if (ImGui::Selectable(moduleName.c_str(), selected, 0, ImVec2(0, 32))) {
+        if (ImGui::Selectable(moduleName.c_str(), selected, 0, ImVec2(0, 36))) {
             moduleClickedOut = true;
             clickedModuleName = moduleName;
         }
