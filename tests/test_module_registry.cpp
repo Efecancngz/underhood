@@ -6,7 +6,7 @@
 
 namespace {
 
-class FakeModule : public underhood::ISimulationModule {
+class FakeModule : public underhood::IStepSimulationModule {
 public:
     std::string name() const override { return "fake"; }
     std::string codeSnippet() const override { return "// fake"; }

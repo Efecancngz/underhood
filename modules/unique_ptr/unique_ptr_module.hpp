@@ -7,7 +7,7 @@
 
 namespace underhood::modules {
 
-class UniquePtrModule : public underhood::ISimulationModule {
+class UniquePtrModule : public underhood::IStepSimulationModule {
 public:
     std::string name() const override;
     std::string codeSnippet() const override;

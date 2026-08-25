@@ -119,11 +119,12 @@ void DrawCodePanel(const underhood::ISimulationModule* module) {
     if (module == nullptr) {
         ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled],
                             "Select a simulation from the left to see its code.");
-    } else {
+    } else if (module->kind() == underhood::ModuleKind::Step) {
+        auto stepModule = static_cast<const underhood::IStepSimulationModule*>(module);
         auto lines = splitLines(module->codeSnippet());
         for (std::size_t i = 0; i < lines.size(); ++i) {
             int lineNumber = static_cast<int>(i) + 1;
-            if (lineNumber == module->currentHighlightedLine()) {
+            if (lineNumber == stepModule->currentHighlightedLine()) {
                 // Amber, matching Canvas's JustChanged box color -- the same
                 // color means "this is what just happened" in both panels.
                 ImGui::TextColored(ImVec4(0.90f, 0.62f, 0.0f, 1.0f), "%s", lines[i].c_str());
@@ -131,19 +132,31 @@ void DrawCodePanel(const underhood::ISimulationModule* module) {
                 ImGui::Text("%s", lines[i].c_str());
             }
         }
+    } else {
+        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled],
+                            "Operational modules show their state in the visualization.");
     }
     ImGui::End();
 }
 
-void DrawControlsPanel(std::vector<underhood::Parameter>& params, bool hasActiveModule,
-                        bool& resetRequested, bool& stepRequested) {
+void DrawControlsPanel(const underhood::ISimulationModule* module,
+                        std::vector<underhood::Parameter>& params, bool& resetRequested,
+                        bool& stepRequested) {
     ImGui::Begin(kControlsPanel);
-    if (!hasActiveModule) {
+    if (module == nullptr) {
         ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], "No simulation selected.");
         ImGui::End();
         return;
     }
 
+    if (module->kind() != underhood::ModuleKind::Step) {
+        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled],
+                            "Operational modules have operation buttons in the visualization.");
+        ImGui::End();
+        return;
+    }
+
+    auto stepModule = static_cast<const underhood::IStepSimulationModule*>(module);
     for (auto& param : params) {
         ImGui::InputInt(param.name.c_str(), &param.value);
         if (param.value < param.minValue) param.value = param.minValue;
@@ -267,20 +280,25 @@ int main() {
         if (moduleClicked) {
             activeModule = underhood::ModuleRegistry::instance().create(clickedModuleName);
             activeModuleName = clickedModuleName;
-            activeParams = activeModule->parameters();
-            activeModule->reset(activeParams);
+            if (activeModule && activeModule->kind() == underhood::ModuleKind::Step) {
+                auto stepModule = static_cast<underhood::IStepSimulationModule*>(activeModule.get());
+                activeParams = stepModule->parameters();
+                stepModule->reset(activeParams);
+            }
         }
 
         DrawCodePanel(activeModule.get());
 
         bool resetRequested = false;
         bool stepRequested = false;
-        DrawControlsPanel(activeParams, activeModule != nullptr, resetRequested, stepRequested);
-        if (resetRequested && activeModule) {
-            activeModule->reset(activeParams);
+        DrawControlsPanel(activeModule.get(), activeParams, resetRequested, stepRequested);
+        if (resetRequested && activeModule && activeModule->kind() == underhood::ModuleKind::Step) {
+            auto stepModule = static_cast<underhood::IStepSimulationModule*>(activeModule.get());
+            stepModule->reset(activeParams);
         }
-        if (stepRequested && activeModule) {
-            activeModule->step();
+        if (stepRequested && activeModule && activeModule->kind() == underhood::ModuleKind::Step) {
+            auto stepModule = static_cast<underhood::IStepSimulationModule*>(activeModule.get());
+            stepModule->step();
         }
 
         DrawVisualizationPanel(activeModule.get(), canvas, palette, canvasTexture);

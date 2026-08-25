@@ -8,7 +8,7 @@
 // for the full walkthrough.
 namespace underhood::modules {
 
-class TemplateModule : public underhood::ISimulationModule {
+class TemplateModule : public underhood::IStepSimulationModule {
 public:
     std::string name() const override;
     std::string codeSnippet() const override;

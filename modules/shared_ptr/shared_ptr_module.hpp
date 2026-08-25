@@ -5,7 +5,7 @@
 
 namespace underhood::modules {
 
-class SharedPtrModule : public underhood::ISimulationModule {
+class SharedPtrModule : public underhood::IStepSimulationModule {
 public:
     std::string name() const override;
     std::string codeSnippet() const override;

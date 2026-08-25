@@ -7,7 +7,7 @@
 
 namespace underhood::modules {
 
-class MoveSemanticsModule : public underhood::ISimulationModule {
+class MoveSemanticsModule : public underhood::IStepSimulationModule {
 public:
     std::string name() const override;
     std::string codeSnippet() const override;
