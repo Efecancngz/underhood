@@ -8,6 +8,7 @@ add_executable(underhood_tests
   test_animated_list.cpp
   test_stack_module.cpp
   test_queue_module.cpp
+  test_singly_linked_list_module.cpp
 )
 target_link_libraries(underhood_tests PRIVATE
   underhood_core
@@ -16,6 +17,7 @@ target_link_libraries(underhood_tests PRIVATE
   underhood_module_move_semantics
   underhood_module_stack
   underhood_module_queue
+  underhood_module_singly_linked_list
   Catch2::Catch2WithMain
 )
 

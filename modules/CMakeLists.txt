@@ -17,3 +17,7 @@ endif()
 if(BUILD_MODULE_QUEUE)
   add_subdirectory(queue)
 endif()
+
+if(BUILD_MODULE_SINGLY_LINKED_LIST)
+  add_subdirectory(singly_linked_list)
+endif()
