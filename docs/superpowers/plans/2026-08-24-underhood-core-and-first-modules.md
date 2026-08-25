@@ -270,6 +270,7 @@ FetchContent_Declare(
   catch2
   GIT_REPOSITORY https://github.com/catchorg/Catch2.git
   GIT_TAG v3.6.0
+  GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(catch2)
 
@@ -584,6 +585,8 @@ git commit -m "feat: add ModuleRegistry as a Meyers' singleton with tests"
 
 No new tests in this task — it's pure dependency wiring. Verified by building a throwaway smoke check in Step 3 below (not committed as a permanent file), then by the launcher actually running in Task 11.
 
+`imgui_src` is pinned to the `docking` branch, not a fixed release tag: `rlImGui` (pinned to `main`) is developed and tested against Dear ImGui's `docking` branch tip, not against numbered release tags, which trail behind it. Pinning `imgui_src` to an older tagged release (e.g. `v1.91.0`) breaks the build against current `rlImGui@main` — it references APIs (`ImGui::GetPlatformIO()`, `ImGuiBackendFlags_RendererHasTextures`, a newer `ImTextureID` shape) that only exist in `docking`. This is a moving target rather than a pinned commit, which is a deliberate trade-off for this hobby/portfolio-scale project: acceptable because `rlImGui`'s own compatibility promise is "current main tracks current docking," not "works with any numbered imgui release."
+
 - [ ] **Step 1: Modify root `CMakeLists.txt`** — insert the following block after the Catch2 `FetchContent_MakeAvailable(catch2)` call and before `add_subdirectory(core)`:
 
 ```cmake
@@ -591,6 +594,7 @@ FetchContent_Declare(
   raylib
   GIT_REPOSITORY https://github.com/raysan5/raylib.git
   GIT_TAG 5.5
+  GIT_SHALLOW TRUE
 )
 set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(raylib)
@@ -598,7 +602,8 @@ FetchContent_MakeAvailable(raylib)
 FetchContent_Declare(
   imgui_src
   GIT_REPOSITORY https://github.com/ocornut/imgui.git
-  GIT_TAG v1.91.0
+  GIT_TAG docking
+  GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(imgui_src)
 
@@ -614,6 +619,7 @@ FetchContent_Declare(
   rlimgui_src
   GIT_REPOSITORY https://github.com/raylib-extras/rlImGui.git
   GIT_TAG main
+  GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(rlimgui_src)
 
@@ -649,7 +655,9 @@ git commit -m "chore: fetch raylib, Dear ImGui, and rlImGui as CMake dependencie
 
 **Interfaces:**
 - Consumes: `raylib` target (Task 5)
-- Produces: `underhood::Canvas` with `void drawBox(int x, int y, int width, int height, const std::string& label) const`, `void drawArrow(int x1, int y1, int x2, int y2) const`, `void drawText(const std::string& text, int x, int y) const`. Modules (Tasks 8–10) call these from `render()`.
+- Produces: `underhood::BoxState` (`Empty`, `Owned`, `JustChanged`) and `underhood::Canvas` with `void setDarkTheme(bool dark)`, `bool isDarkTheme() const`, `void drawBox(int x, int y, int width, int height, const std::string& label, BoxState state) const`, `void drawArrow(int x1, int y1, int x2, int y2) const`, `void drawText(const std::string& text, int x, int y) const`. Modules (Tasks 8–10) call these from `render()`; the launcher (Task 11) calls `setDarkTheme()` when the user toggles theme.
+
+**Design note (visual identity, decided with the user before this task was dispatched — see ledger):** boxes are colored by semantic state, not decoration — gray for "empty/nullptr," a muted teal for "holds a value," and amber for "this box just changed on the last step." This is a deliberate, muted, flat palette (no gradients, no glassmorphism, no raylib default neon PURPLE/MAGENTA) inspired by data-structure visualization tools (e.g. visualgo.net-style: bordered boxes, high-contrast flat color, color reinforces meaning rather than decorates). The launcher supports both a dark and a light variant of this same palette (see Task 11); `Canvas` holds the current theme flag and picks the matching color pair.
 
 No unit tests for this task: raylib drawing calls require an initialized window/GL context to run safely, so `Canvas` is verified visually when the launcher runs (Task 11), consistent with the project standard that GUI rendering is manually verified rather than unit tested.
 
@@ -662,14 +670,25 @@ No unit tests for this task: raylib drawing calls require an initialized window/
 
 namespace underhood {
 
+enum class BoxState { Empty, Owned, JustChanged };
+
 // Thin wrapper around raylib drawing primitives used by simulation modules.
 // Keeping raylib calls behind this interface means module render() code
-// only ever names Canvas, not raylib types directly.
+// only ever names Canvas, not raylib types directly. Box/text colors adapt
+// to the active theme (see setDarkTheme); the launcher owns clearing the
+// window background separately, in sync with the same theme flag.
 class Canvas {
 public:
-    void drawBox(int x, int y, int width, int height, const std::string& label) const;
+    void setDarkTheme(bool dark);
+    bool isDarkTheme() const;
+
+    void drawBox(int x, int y, int width, int height, const std::string& label,
+                 BoxState state) const;
     void drawArrow(int x1, int y1, int x2, int y2) const;
     void drawText(const std::string& text, int x, int y) const;
+
+private:
+    bool darkTheme_ = true;
 };
 
 }  // namespace underhood
@@ -684,18 +703,55 @@ public:
 
 namespace underhood {
 
-void Canvas::drawBox(int x, int y, int width, int height, const std::string& label) const {
-    DrawRectangleLines(x, y, width, height, BLACK);
-    DrawText(label.c_str(), x + 8, y + 8, 16, BLACK);
+namespace {
+
+// A deliberate, muted palette (not raylib's loud defaults): gray for
+// "nothing here," a calm teal for "holds a value," and amber for "this
+// just changed." Distinct enough to stay legible without relying on hue
+// alone -- the label text always states the state in words too.
+Color boxColor(BoxState state, bool dark) {
+    switch (state) {
+        case BoxState::Empty:
+            return dark ? Color{110, 110, 110, 255} : Color{170, 170, 170, 255};
+        case BoxState::Owned:
+            return dark ? Color{86, 182, 194, 255} : Color{0, 121, 140, 255};
+        case BoxState::JustChanged:
+            return dark ? Color{230, 159, 0, 255} : Color{204, 102, 0, 255};
+    }
+    return dark ? Color{110, 110, 110, 255} : Color{170, 170, 170, 255};
+}
+
+Color textColor(bool dark) {
+    return dark ? RAYWHITE : Color{30, 30, 30, 255};
+}
+
+}  // namespace
+
+void Canvas::setDarkTheme(bool dark) {
+    darkTheme_ = dark;
+}
+
+bool Canvas::isDarkTheme() const {
+    return darkTheme_;
+}
+
+void Canvas::drawBox(int x, int y, int width, int height, const std::string& label,
+                      BoxState state) const {
+    Color color = boxColor(state, darkTheme_);
+    Rectangle rect{static_cast<float>(x), static_cast<float>(y), static_cast<float>(width),
+                   static_cast<float>(height)};
+    DrawRectangleLinesEx(rect, 2.0f, color);
+    DrawText(label.c_str(), x + 8, y + 8, 16, textColor(darkTheme_));
 }
 
 void Canvas::drawArrow(int x1, int y1, int x2, int y2) const {
-    DrawLine(x1, y1, x2, y2, DARKGRAY);
-    DrawCircle(x2, y2, 4, DARKGRAY);
+    Color color = textColor(darkTheme_);
+    DrawLine(x1, y1, x2, y2, color);
+    DrawCircle(x2, y2, 4, color);
 }
 
 void Canvas::drawText(const std::string& text, int x, int y) const {
-    DrawText(text.c_str(), x, y, 16, BLACK);
+    DrawText(text.c_str(), x, y, 16, textColor(darkTheme_));
 }
 
 }  // namespace underhood
@@ -847,16 +903,12 @@ void TemplateModule::render(underhood::Canvas& canvas) const {
 
 - [ ] **Step 4: Write `modules/CMakeLists.txt`**
 
+`unique_ptr/`, `shared_ptr/`, and `move_semantics/` don't exist yet (Tasks 8–10 create them) — do NOT add `add_subdirectory()` calls for them here. Doing so now would break `cmake` configure until those tasks land, since `add_subdirectory()` errors on a missing directory even inside a false `if()` branch's sibling code is fine, but an enabled option pointing at a nonexistent folder is not. Each of Tasks 8, 9, and 10 appends its own guarded `add_subdirectory()` block to this file once its folder exists.
+
 ```cmake
-if(BUILD_MODULE_UNIQUE_PTR)
-  add_subdirectory(unique_ptr)
-endif()
-if(BUILD_MODULE_SHARED_PTR)
-  add_subdirectory(shared_ptr)
-endif()
-if(BUILD_MODULE_MOVE_SEMANTICS)
-  add_subdirectory(move_semantics)
-endif()
+# Real module subdirectories are added here by the task that creates each
+# one (see Tasks 8-10 in the implementation plan) — this file starts empty
+# on purpose.
 ```
 
 - [ ] **Step 5: Modify root `CMakeLists.txt`** — add the module options near the top (after `set(CMAKE_CXX_STANDARD_REQUIRED ON)`) and `add_subdirectory(modules)` after `add_subdirectory(core)`:
@@ -923,6 +975,7 @@ git commit -m "docs: add module template and contribution guide"
 - Create: `modules/unique_ptr/unique_ptr_module.hpp`
 - Create: `modules/unique_ptr/unique_ptr_module.cpp`
 - Create: `modules/unique_ptr/CMakeLists.txt`
+- Modify: `modules/CMakeLists.txt` (add the guarded `add_subdirectory(unique_ptr)` block)
 - Create: `tests/test_unique_ptr_module.cpp`
 - Modify: `tests/CMakeLists.txt` (add test file + link module target)
 
@@ -1007,6 +1060,8 @@ private:
     int highlightedLine_ = 1;
     std::optional<int> aValue_;
     std::optional<int> bValue_;
+    bool aJustChanged_ = false;
+    bool bJustChanged_ = false;
 };
 
 }  // namespace underhood::modules
@@ -1044,18 +1099,25 @@ void UniquePtrModule::reset(const std::vector<underhood::Parameter>& params) {
     highlightedLine_ = 1;
     aValue_ = initialValue;
     bValue_ = std::nullopt;
+    aJustChanged_ = false;
+    bJustChanged_ = false;
 }
 
 bool UniquePtrModule::step() {
+    aJustChanged_ = false;
+    bJustChanged_ = false;
     if (phase_ == 0) {
         bValue_ = aValue_;
         aValue_ = std::nullopt;
+        aJustChanged_ = true;
+        bJustChanged_ = true;
         phase_ = 1;
         highlightedLine_ = 2;
         return true;
     }
     if (phase_ == 1) {
         bValue_ = std::nullopt;
+        bJustChanged_ = true;
         phase_ = 2;
         highlightedLine_ = 3;
         return true;
@@ -1068,8 +1130,14 @@ int UniquePtrModule::currentHighlightedLine() const {
 }
 
 void UniquePtrModule::render(underhood::Canvas& canvas) const {
-    canvas.drawBox(50, 50, 120, 60, aValue_ ? ("a: " + std::to_string(*aValue_)) : "a: (empty)");
-    canvas.drawBox(250, 50, 120, 60, bValue_ ? ("b: " + std::to_string(*bValue_)) : "b: (empty)");
+    auto stateFor = [](bool hasValue, bool justChanged) {
+        if (justChanged) return underhood::BoxState::JustChanged;
+        return hasValue ? underhood::BoxState::Owned : underhood::BoxState::Empty;
+    };
+    canvas.drawBox(50, 50, 120, 60, aValue_ ? ("a: " + std::to_string(*aValue_)) : "a: (empty)",
+                   stateFor(aValue_.has_value(), aJustChanged_));
+    canvas.drawBox(250, 50, 120, 60, bValue_ ? ("b: " + std::to_string(*bValue_)) : "b: (empty)",
+                   stateFor(bValue_.has_value(), bJustChanged_));
 }
 
 bool UniquePtrModule::ownedByA() const {
@@ -1106,7 +1174,15 @@ target_include_directories(underhood_module_unique_ptr PUBLIC ${CMAKE_CURRENT_SO
 target_link_libraries(underhood_module_unique_ptr PUBLIC underhood_core)
 ```
 
-- [ ] **Step 6: Modify `tests/CMakeLists.txt`**
+- [ ] **Step 6: Modify `modules/CMakeLists.txt`** — replace the placeholder comment with:
+
+```cmake
+if(BUILD_MODULE_UNIQUE_PTR)
+  add_subdirectory(unique_ptr)
+endif()
+```
+
+- [ ] **Step 7: Modify `tests/CMakeLists.txt`**
 
 ```cmake
 add_executable(underhood_tests
@@ -1125,7 +1201,7 @@ include(Catch)
 catch_discover_tests(underhood_tests)
 ```
 
-- [ ] **Step 7: Run tests to verify they pass**
+- [ ] **Step 8: Run tests to verify they pass**
 
 Run:
 ```bash
@@ -1135,10 +1211,10 @@ ctest --test-dir build --output-on-failure
 ```
 Expected: all tests pass, including the two new `UniquePtrModule` tests.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add modules/unique_ptr tests/test_unique_ptr_module.cpp tests/CMakeLists.txt
+git add modules/unique_ptr modules/CMakeLists.txt tests/test_unique_ptr_module.cpp tests/CMakeLists.txt
 git commit -m "feat: add unique_ptr simulation module"
 ```
 
@@ -1150,6 +1226,7 @@ git commit -m "feat: add unique_ptr simulation module"
 - Create: `modules/shared_ptr/shared_ptr_module.hpp`
 - Create: `modules/shared_ptr/shared_ptr_module.cpp`
 - Create: `modules/shared_ptr/CMakeLists.txt`
+- Modify: `modules/CMakeLists.txt` (append the guarded `add_subdirectory(shared_ptr)` block)
 - Create: `tests/test_shared_ptr_module.cpp`
 - Modify: `tests/CMakeLists.txt`
 
@@ -1229,6 +1306,9 @@ private:
     int refCount_ = 0;
     bool aAlive_ = false;
     bool bAlive_ = false;
+    bool refCountJustChanged_ = false;
+    bool aJustChanged_ = false;
+    bool bJustChanged_ = false;
 };
 
 }  // namespace underhood::modules
@@ -1268,12 +1348,20 @@ void SharedPtrModule::reset(const std::vector<underhood::Parameter>& params) {
     aAlive_ = true;
     bAlive_ = false;
     refCount_ = 1;
+    refCountJustChanged_ = false;
+    aJustChanged_ = false;
+    bJustChanged_ = false;
 }
 
 bool SharedPtrModule::step() {
+    refCountJustChanged_ = false;
+    aJustChanged_ = false;
+    bJustChanged_ = false;
     if (phase_ == 0) {
         bAlive_ = true;
         refCount_ = 2;
+        bJustChanged_ = true;
+        refCountJustChanged_ = true;
         phase_ = 1;
         highlightedLine_ = 2;
         return true;
@@ -1281,6 +1369,8 @@ bool SharedPtrModule::step() {
     if (phase_ == 1) {
         aAlive_ = false;
         refCount_ = 1;
+        aJustChanged_ = true;
+        refCountJustChanged_ = true;
         phase_ = 2;
         highlightedLine_ = 3;
         return true;
@@ -1288,6 +1378,8 @@ bool SharedPtrModule::step() {
     if (phase_ == 2) {
         bAlive_ = false;
         refCount_ = 0;
+        bJustChanged_ = true;
+        refCountJustChanged_ = true;
         phase_ = 3;
         highlightedLine_ = 4;
         return true;
@@ -1300,9 +1392,20 @@ int SharedPtrModule::currentHighlightedLine() const {
 }
 
 void SharedPtrModule::render(underhood::Canvas& canvas) const {
-    canvas.drawBox(50, 50, 160, 60, "refcount: " + std::to_string(refCount_));
-    canvas.drawBox(50, 150, 120, 60, aAlive_ ? ("a -> " + std::to_string(value_)) : "a: (empty)");
-    canvas.drawBox(250, 150, 120, 60, bAlive_ ? ("b -> " + std::to_string(value_)) : "b: (empty)");
+    auto refState = refCountJustChanged_
+                         ? underhood::BoxState::JustChanged
+                         : (refCount_ > 0 ? underhood::BoxState::Owned : underhood::BoxState::Empty);
+    canvas.drawBox(50, 50, 160, 60, "refcount: " + std::to_string(refCount_), refState);
+
+    auto aState = aJustChanged_ ? underhood::BoxState::JustChanged
+                                 : (aAlive_ ? underhood::BoxState::Owned : underhood::BoxState::Empty);
+    canvas.drawBox(50, 150, 120, 60, aAlive_ ? ("a -> " + std::to_string(value_)) : "a: (empty)",
+                   aState);
+
+    auto bState = bJustChanged_ ? underhood::BoxState::JustChanged
+                                 : (bAlive_ ? underhood::BoxState::Owned : underhood::BoxState::Empty);
+    canvas.drawBox(250, 150, 120, 60, bAlive_ ? ("b -> " + std::to_string(value_)) : "b: (empty)",
+                   bState);
 }
 
 int SharedPtrModule::refCount() const {
@@ -1339,7 +1442,15 @@ target_include_directories(underhood_module_shared_ptr PUBLIC ${CMAKE_CURRENT_SO
 target_link_libraries(underhood_module_shared_ptr PUBLIC underhood_core)
 ```
 
-- [ ] **Step 6: Modify `tests/CMakeLists.txt`**
+- [ ] **Step 6: Modify `modules/CMakeLists.txt`** — append below the `unique_ptr` block Task 8 added:
+
+```cmake
+if(BUILD_MODULE_SHARED_PTR)
+  add_subdirectory(shared_ptr)
+endif()
+```
+
+- [ ] **Step 7: Modify `tests/CMakeLists.txt`**
 
 ```cmake
 add_executable(underhood_tests
@@ -1360,7 +1471,7 @@ include(Catch)
 catch_discover_tests(underhood_tests)
 ```
 
-- [ ] **Step 7: Run tests to verify they pass**
+- [ ] **Step 8: Run tests to verify they pass**
 
 Run:
 ```bash
@@ -1370,10 +1481,10 @@ ctest --test-dir build --output-on-failure
 ```
 Expected: all tests pass, including the new `SharedPtrModule` test.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add modules/shared_ptr tests/test_shared_ptr_module.cpp tests/CMakeLists.txt
+git add modules/shared_ptr modules/CMakeLists.txt tests/test_shared_ptr_module.cpp tests/CMakeLists.txt
 git commit -m "feat: add shared_ptr simulation module"
 ```
 
@@ -1385,6 +1496,7 @@ git commit -m "feat: add shared_ptr simulation module"
 - Create: `modules/move_semantics/move_semantics_module.hpp`
 - Create: `modules/move_semantics/move_semantics_module.cpp`
 - Create: `modules/move_semantics/CMakeLists.txt`
+- Modify: `modules/CMakeLists.txt` (append the guarded `add_subdirectory(move_semantics)` block)
 - Create: `tests/test_move_semantics_module.cpp`
 - Modify: `tests/CMakeLists.txt`
 
@@ -1457,6 +1569,8 @@ private:
     int newValue_ = 0;
     std::optional<int> r1Value_;
     std::optional<int> r2Value_;
+    bool r1JustChanged_ = false;
+    bool r2JustChanged_ = false;
 };
 
 }  // namespace underhood::modules
@@ -1495,18 +1609,25 @@ void MoveSemanticsModule::reset(const std::vector<underhood::Parameter>& params)
     highlightedLine_ = 1;
     r1Value_ = initialValue;
     r2Value_ = std::nullopt;
+    r1JustChanged_ = false;
+    r2JustChanged_ = false;
 }
 
 bool MoveSemanticsModule::step() {
+    r1JustChanged_ = false;
+    r2JustChanged_ = false;
     if (phase_ == 0) {
         r2Value_ = r1Value_;
         r1Value_ = std::nullopt;
+        r1JustChanged_ = true;
+        r2JustChanged_ = true;
         phase_ = 1;
         highlightedLine_ = 2;
         return true;
     }
     if (phase_ == 1) {
         r2Value_ = newValue_;
+        r2JustChanged_ = true;
         phase_ = 2;
         highlightedLine_ = 3;
         return true;
@@ -1519,8 +1640,17 @@ int MoveSemanticsModule::currentHighlightedLine() const {
 }
 
 void MoveSemanticsModule::render(underhood::Canvas& canvas) const {
-    canvas.drawBox(50, 50, 120, 60, r1Value_ ? ("r1: " + std::to_string(*r1Value_)) : "r1: (empty)");
-    canvas.drawBox(250, 50, 120, 60, r2Value_ ? ("r2: " + std::to_string(*r2Value_)) : "r2: (empty)");
+    auto r1State = r1JustChanged_
+                       ? underhood::BoxState::JustChanged
+                       : (r1Value_ ? underhood::BoxState::Owned : underhood::BoxState::Empty);
+    canvas.drawBox(50, 50, 120, 60, r1Value_ ? ("r1: " + std::to_string(*r1Value_)) : "r1: (empty)",
+                   r1State);
+
+    auto r2State = r2JustChanged_
+                       ? underhood::BoxState::JustChanged
+                       : (r2Value_ ? underhood::BoxState::Owned : underhood::BoxState::Empty);
+    canvas.drawBox(250, 50, 120, 60, r2Value_ ? ("r2: " + std::to_string(*r2Value_)) : "r2: (empty)",
+                   r2State);
 }
 
 std::optional<int> MoveSemanticsModule::r1Value() const {
@@ -1553,7 +1683,15 @@ target_include_directories(underhood_module_move_semantics PUBLIC ${CMAKE_CURREN
 target_link_libraries(underhood_module_move_semantics PUBLIC underhood_core)
 ```
 
-- [ ] **Step 6: Modify `tests/CMakeLists.txt`**
+- [ ] **Step 6: Modify `modules/CMakeLists.txt`** — append below the `unique_ptr`/`shared_ptr` blocks Tasks 8–9 added:
+
+```cmake
+if(BUILD_MODULE_MOVE_SEMANTICS)
+  add_subdirectory(move_semantics)
+endif()
+```
+
+- [ ] **Step 7: Modify `tests/CMakeLists.txt`**
 
 ```cmake
 add_executable(underhood_tests
@@ -1576,7 +1714,7 @@ include(Catch)
 catch_discover_tests(underhood_tests)
 ```
 
-- [ ] **Step 7: Run tests to verify they pass**
+- [ ] **Step 8: Run tests to verify they pass**
 
 Run:
 ```bash
@@ -1586,10 +1724,10 @@ ctest --test-dir build --output-on-failure
 ```
 Expected: all tests pass, including the new `MoveSemanticsModule` test.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add modules/move_semantics tests/test_move_semantics_module.cpp tests/CMakeLists.txt
+git add modules/move_semantics modules/CMakeLists.txt tests/test_move_semantics_module.cpp tests/CMakeLists.txt
 git commit -m "feat: add move_semantics simulation module"
 ```
 
@@ -1643,7 +1781,9 @@ void drawCodePanel(const underhood::ISimulationModule& module) {
     for (std::size_t i = 0; i < lines.size(); ++i) {
         int lineNumber = static_cast<int>(i) + 1;
         if (lineNumber == module.currentHighlightedLine()) {
-            ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "%s", lines[i].c_str());
+            // Amber, matching Canvas's JustChanged box color (see canvas.cpp) --
+            // the same color means "this is what just happened" in both panels.
+            ImGui::TextColored(ImVec4(0.90f, 0.62f, 0.0f, 1.0f), "%s", lines[i].c_str());
         } else {
             ImGui::Text("%s", lines[i].c_str());
         }
@@ -1671,22 +1811,45 @@ void drawParameterPanel(std::vector<underhood::Parameter>& params, bool& resetRe
     ImGui::End();
 }
 
+void drawThemePanel(bool& lightTheme, bool& themeChanged) {
+    ImGui::Begin("Theme");
+    if (ImGui::Checkbox("Light theme", &lightTheme)) {
+        themeChanged = true;
+    }
+    ImGui::End();
+}
+
 }  // namespace
 
 int main() {
     InitWindow(1024, 768, "underhood");
     SetTargetFPS(60);
     rlImGuiSetup(true);
+    ImGui::StyleColorsDark();
 
     AppState state = AppState::Menu;
     std::unique_ptr<underhood::ISimulationModule> activeModule;
     std::vector<underhood::Parameter> activeParams;
     underhood::Canvas canvas;
+    bool lightTheme = false;
 
     while (!WindowShouldClose()) {
+        Color backgroundColor = lightTheme ? RAYWHITE : Color{24, 24, 24, 255};
+
         BeginDrawing();
-        ClearBackground(RAYWHITE);
+        ClearBackground(backgroundColor);
         rlImGuiBegin();
+
+        bool themeChanged = false;
+        drawThemePanel(lightTheme, themeChanged);
+        if (themeChanged) {
+            if (lightTheme) {
+                ImGui::StyleColorsLight();
+            } else {
+                ImGui::StyleColorsDark();
+            }
+            canvas.setDarkTheme(!lightTheme);
+        }
 
         if (state == AppState::Menu) {
             ImGui::Begin("underhood");
@@ -1770,13 +1933,22 @@ Expected: build succeeds, producing `build/launcher/underhood` (or `underhood.ex
 - [ ] **Step 5: Run the launcher and manually verify**
 
 Run: `./build/launcher/underhood` (Windows: `build\launcher\Debug\underhood.exe` or wherever the generator places it)
-Expected: a window opens titled "underhood" showing three buttons (`move_semantics`, `shared_ptr`, `unique_ptr` — alphabetical). Click `unique_ptr`: a code panel and a controls panel with an `initial_value` slider, "Reset", "Next Step", "Back to Menu" buttons appear, along with two boxes labeled `a: 42` / `b: (empty)`. Click "Next Step" twice and confirm the boxes swap ownership then both go empty, and the highlighted code line advances 1→2→3. Click "Back to Menu" and confirm the other two modules behave similarly.
+Expected: a window opens titled "underhood" in the dark theme by default (near-black background, `ImGui::StyleColorsDark()` panels) showing a small "Theme" panel with a "Light theme" checkbox, and a menu with three buttons (`move_semantics`, `shared_ptr`, `unique_ptr` — alphabetical). Click `unique_ptr`: a code panel and a controls panel with an `initial_value` slider, "Reset", "Next Step", "Back to Menu" buttons appear, along with two bordered boxes labeled `a: 42` (teal border — "Owned") / `b: (empty)` (gray border — "Empty"). Click "Next Step": both boxes briefly should be amber-bordered ("JustChanged") since ownership just moved — `a` becomes gray/empty, `b` becomes teal/owned — and the highlighted code line advances to line 2 in the matching amber. Click "Next Step" again: `b` goes amber then gray/empty, line 3 highlights. Click "Back to Menu" and confirm the other two modules behave similarly with the same color meaning. Check the "Light theme" checkbox and confirm the window background switches to white, ImGui panels switch to the light style, and the box colors switch to their light-theme variants (still legible, not washed out).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Modify `CLAUDE.md`** — add a note about the visual design decision under a new subsection (append after the existing "Known simplifications (v1)" section):
+
+```md
+
+## Visual design
+
+Box color is semantic, not decorative: gray = empty/nullptr, teal = holds a value, amber = changed on the last step (the highlighted code line uses the same amber, so "what just happened" reads the same way in both panels). Palette is deliberately flat and muted — no gradients, no glassmorphism, none of raylib's default neon colors — closer to how data-structure visualizers (e.g. visualgo.net) present state than to a typical UI mockup. Both a dark and a light variant of this palette exist (`Canvas::setDarkTheme`, toggled from the "Theme" panel); color is reinforcement, not the only signal — labels always spell out the state in words too.
+```
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add launcher CMakeLists.txt
-git commit -m "feat: add launcher with menu, code panel, and parameter controls"
+git add launcher CMakeLists.txt CLAUDE.md
+git commit -m "feat: add launcher with menu, code panel, parameter controls, and theming"
 ```
 
 ---

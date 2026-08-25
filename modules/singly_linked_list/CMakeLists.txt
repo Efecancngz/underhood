@@ -1,0 +1,3 @@
+add_library(underhood_module_singly_linked_list OBJECT singly_linked_list_module.cpp)
+target_include_directories(underhood_module_singly_linked_list PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(underhood_module_singly_linked_list PUBLIC underhood_core)

@@ -1,2 +1,11 @@
+build/
+build-*/
+CMakeCache.txt
+CMakeFiles/
+*.obj
+*.o
+.vs/
+.vscode/
+*.user
 .worktrees/
 mcp.json

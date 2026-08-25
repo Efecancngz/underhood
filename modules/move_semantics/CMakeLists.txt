@@ -1,0 +1,3 @@
+add_library(underhood_module_move_semantics OBJECT move_semantics_module.cpp)
+target_include_directories(underhood_module_move_semantics PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(underhood_module_move_semantics PUBLIC underhood_core)

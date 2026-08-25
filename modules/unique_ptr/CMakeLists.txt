@@ -1,0 +1,3 @@
+add_library(underhood_module_unique_ptr OBJECT unique_ptr_module.cpp)
+target_include_directories(underhood_module_unique_ptr PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(underhood_module_unique_ptr PUBLIC underhood_core)
