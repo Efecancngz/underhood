@@ -50,6 +50,72 @@ ImVec4 ToImVec4(Color c) {
     return ImVec4(c.r / 255.0f, c.g / 255.0f, c.b / 255.0f, 1.0f);
 }
 
+// Small, font-independent icon per module -- drawn with raw ImDrawList
+// primitives (circles/rects/lines) instead of glyphs, so it never depends on
+// which codepoints the bundled Inter font happens to cover. Each shape is a
+// loose visual mnemonic for the concept (two circles for shared ownership,
+// a closed triangle of dots for a circular list, etc).
+void DrawModuleIcon(ImDrawList* drawList, ImVec2 topLeft, float size, const std::string& moduleName,
+                     ImU32 color) {
+    float cx = topLeft.x + size * 0.5f;
+    float cy = topLeft.y + size * 0.5f;
+    float r = size * 0.16f;
+
+    if (moduleName == "unique_ptr") {
+        drawList->AddCircleFilled(ImVec2(cx, cy), r, color);
+    } else if (moduleName == "shared_ptr") {
+        drawList->AddCircleFilled(ImVec2(cx - r * 0.7f, cy), r, color);
+        drawList->AddCircleFilled(ImVec2(cx + r * 0.7f, cy), r, color);
+    } else if (moduleName == "move_semantics") {
+        drawList->AddTriangleFilled(ImVec2(topLeft.x + size * 0.25f, topLeft.y + size * 0.22f),
+                                     ImVec2(topLeft.x + size * 0.25f, topLeft.y + size * 0.78f),
+                                     ImVec2(topLeft.x + size * 0.8f, cy), color);
+    } else if (moduleName == "stack") {
+        float barHeight = size * 0.15f;
+        float barWidth = size * 0.68f;
+        float startX = topLeft.x + (size - barWidth) * 0.5f;
+        for (int i = 0; i < 3; ++i) {
+            float y = topLeft.y + size * 0.18f + i * (barHeight + size * 0.09f);
+            drawList->AddRectFilled(ImVec2(startX, y), ImVec2(startX + barWidth, y + barHeight), color,
+                                     1.5f);
+        }
+    } else if (moduleName == "queue") {
+        float barWidth = size * 0.15f;
+        float barHeight = size * 0.58f;
+        float startY = topLeft.y + (size - barHeight) * 0.5f;
+        for (int i = 0; i < 3; ++i) {
+            float x = topLeft.x + size * 0.14f + i * (barWidth + size * 0.11f);
+            drawList->AddRectFilled(ImVec2(x, startY), ImVec2(x + barWidth, startY + barHeight), color,
+                                     1.5f);
+        }
+    } else if (moduleName == "linked_list_singly") {
+        float dotR = size * 0.09f;
+        float positions[3] = {0.2f, 0.5f, 0.8f};
+        for (int i = 0; i < 3; ++i) {
+            float x = topLeft.x + size * positions[i];
+            drawList->AddCircleFilled(ImVec2(x, cy), dotR, color);
+            if (i < 2) {
+                float nextX = topLeft.x + size * positions[i + 1];
+                drawList->AddLine(ImVec2(x + dotR, cy), ImVec2(nextX - dotR, cy), color, 1.5f);
+            }
+        }
+    } else if (moduleName == "linked_list_circular") {
+        float dotR = size * 0.09f;
+        ImVec2 p0(cx, topLeft.y + size * 0.2f);
+        ImVec2 p1(topLeft.x + size * 0.2f, topLeft.y + size * 0.78f);
+        ImVec2 p2(topLeft.x + size * 0.8f, topLeft.y + size * 0.78f);
+        drawList->AddLine(p0, p1, color, 1.5f);
+        drawList->AddLine(p1, p2, color, 1.5f);
+        drawList->AddLine(p2, p0, color, 1.5f);
+        drawList->AddCircleFilled(p0, dotR, color);
+        drawList->AddCircleFilled(p1, dotR, color);
+        drawList->AddCircleFilled(p2, dotR, color);
+    } else {
+        drawList->AddRectFilled(ImVec2(topLeft.x + size * 0.25f, topLeft.y + size * 0.25f),
+                                 ImVec2(topLeft.x + size * 0.75f, topLeft.y + size * 0.75f), color, 1.5f);
+    }
+}
+
 const char* kModulesPanel = "Modules";
 const char* kCodePanel = "Code";
 const char* kControlsPanel = "Controls";
@@ -92,33 +158,75 @@ void BuildInitialLayout(ImGuiID dockspaceId) {
     ImGui::DockBuilderFinish(dockspaceId);
 }
 
+// Draws one module row: a full-width invisible Selectable for hit-testing
+// (so the whole row is clickable, not just the text) with the icon + label
+// painted on top via the draw list -- avoids fighting ImGui's layout cursor
+// to align an icon next to Selectable's own text.
+void DrawModuleRow(const std::string& moduleName, bool selected, bool& moduleClickedOut,
+                    std::string& clickedModuleName) {
+    ImVec2 rowStart = ImGui::GetCursorScreenPos();
+    if (ImGui::Selectable(("##sel_" + moduleName).c_str(), selected, 0, ImVec2(0, 32))) {
+        moduleClickedOut = true;
+        clickedModuleName = moduleName;
+    }
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    ImU32 textColor = ImGui::GetColorU32(ImGuiCol_Text);
+    DrawModuleIcon(drawList, ImVec2(rowStart.x + 8, rowStart.y + 7), 18.0f, moduleName, textColor);
+    drawList->AddText(ImVec2(rowStart.x + 34, rowStart.y + 8), textColor, moduleName.c_str());
+}
+
+// Categories are individually collapsible (ImGui::CollapsingHeader owns its
+// own open/closed state per session -- no manual bookkeeping needed) so a
+// category the user isn't using right now doesn't eat vertical space.
 void DrawModulesPanel(const std::string& activeModuleName, bool& moduleClickedOut,
-                       std::string& clickedModuleName, bool& lightTheme, bool& themeChanged) {
+                       std::string& clickedModuleName, std::string& clickedCategoryName) {
     ImGui::Begin(kModulesPanel);
 
     for (const auto& category : underhood::ModuleRegistry::instance().categories()) {
         std::string header = category.name;
         for (auto& c : header) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], "%s", header.c_str());
-        ImGui::Spacing();
-
-        for (const auto& moduleName : category.moduleNames) {
-            bool selected = (moduleName == activeModuleName);
-            if (ImGui::Selectable(moduleName.c_str(), selected, 0, ImVec2(0, 36))) {
-                moduleClickedOut = true;
-                clickedModuleName = moduleName;
+        if (ImGui::CollapsingHeader(header.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Spacing();
+            for (const auto& moduleName : category.moduleNames) {
+                bool selected = (moduleName == activeModuleName);
+                bool wasClicked = moduleClickedOut;
+                DrawModuleRow(moduleName, selected, moduleClickedOut, clickedModuleName);
+                if (!wasClicked && moduleClickedOut) {
+                    clickedCategoryName = category.name;
+                }
             }
+            ImGui::Spacing();
         }
-        ImGui::Spacing();
         ImGui::Spacing();
     }
 
-    ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 50.0f);
-    ImGui::Separator();
+    ImGui::End();
+}
+
+// Drawn inside the dock host's menu bar (see main()), so it always sits in
+// a fixed strip above every panel regardless of how the user has resized or
+// re-docked things. Owns the theme toggle too -- moved here from the bottom
+// of the sidebar so it reads as a persistent app-level control, not a
+// module-list footer.
+void DrawTopBar(const std::string& activeModuleName, const std::string& activeCategoryName,
+                 bool& lightTheme, bool& themeChanged) {
+    ImGui::TextUnformatted("underhood");
+    if (!activeModuleName.empty()) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], ">");
+        ImGui::SameLine();
+        ImGui::TextUnformatted(activeCategoryName.c_str());
+        ImGui::SameLine();
+        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], ">");
+        ImGui::SameLine();
+        ImGui::TextUnformatted(activeModuleName.c_str());
+    }
+
+    float toggleWidth = 130.0f;
+    ImGui::SameLine(ImGui::GetWindowWidth() - toggleWidth);
     if (ImGui::Checkbox("Light theme", &lightTheme)) {
         themeChanged = true;
     }
-    ImGui::End();
 }
 
 void DrawCodePanel(const underhood::ISimulationModule* module, const underhood::Palette& palette) {
@@ -209,14 +317,77 @@ void DrawControlsPanel(underhood::ISimulationModule* module, std::vector<underho
     ImGui::End();
 }
 
+// Landing state: instead of an empty canvas before any module is picked,
+// show a card per module (grouped by category, same icon as the sidebar
+// row) so the panel always has content and offers a second way to start,
+// matching dsa-visualizer's home screen. Clicking a card reports out through
+// the same (clicked, name, category) triple DrawModulesPanel uses, so
+// main() handles both selection sources identically.
+void DrawModuleCardGrid(bool& moduleClickedOut, std::string& clickedModuleName,
+                         std::string& clickedCategoryName) {
+    constexpr float kCardWidth = 150.0f;
+    constexpr float kCardHeight = 92.0f;
+    constexpr float kSpacing = 12.0f;
+
+    ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled],
+                        "Select a simulation from the left, or pick one below.");
+    ImGui::Spacing();
+    ImGui::Spacing();
+
+    for (const auto& category : underhood::ModuleRegistry::instance().categories()) {
+        std::string header = category.name;
+        for (auto& c : header) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], "%s", header.c_str());
+        ImGui::Spacing();
+
+        float windowVisibleX2 = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
+        for (std::size_t i = 0; i < category.moduleNames.size(); ++i) {
+            const std::string& moduleName = category.moduleNames[i];
+            ImGui::PushID(moduleName.c_str());
+            ImVec2 cardPos = ImGui::GetCursorScreenPos();
+            if (ImGui::Button("##card", ImVec2(kCardWidth, kCardHeight))) {
+                moduleClickedOut = true;
+                clickedModuleName = moduleName;
+                clickedCategoryName = category.name;
+            }
+            ImDrawList* drawList = ImGui::GetWindowDrawList();
+            ImU32 textColor = ImGui::GetColorU32(ImGuiCol_Text);
+            DrawModuleIcon(drawList, ImVec2(cardPos.x + kCardWidth * 0.5f - 12.0f, cardPos.y + 16.0f),
+                           24.0f, moduleName, textColor);
+            ImVec2 textSize = ImGui::CalcTextSize(moduleName.c_str());
+            drawList->AddText(ImVec2(cardPos.x + (kCardWidth - textSize.x) * 0.5f, cardPos.y + kCardHeight - 26.0f),
+                              textColor, moduleName.c_str());
+            ImGui::PopID();
+
+            float lastCardX2 = ImGui::GetItemRectMax().x;
+            float nextCardX2 = lastCardX2 + kSpacing + kCardWidth;
+            if (i + 1 < category.moduleNames.size() && nextCardX2 < windowVisibleX2) {
+                ImGui::SameLine(0.0f, kSpacing);
+            }
+        }
+        ImGui::Spacing();
+        ImGui::Spacing();
+    }
+}
+
 // Renders the active module (if any) into canvasTexture at exactly the
 // panel's current content-region size, then displays it -- 1:1, never
 // scaled by ImGui/rlImGui, so text and box edges stay crisp regardless of
 // window size. Recreates the texture only when the panel is actually
-// resized (checked every frame, cheap: two int comparisons).
+// resized (checked every frame, cheap: two int comparisons). When no module
+// is active, shows the card grid instead (see DrawModuleCardGrid).
 void DrawVisualizationPanel(underhood::ISimulationModule* module, underhood::Canvas& canvas,
-                             const underhood::Palette& palette, RenderTexture2D& canvasTexture) {
+                             const underhood::Palette& palette, RenderTexture2D& canvasTexture,
+                             bool& moduleClickedOut, std::string& clickedModuleName,
+                             std::string& clickedCategoryName) {
     ImGui::Begin(kVisualizationPanel);
+
+    if (module == nullptr) {
+        DrawModuleCardGrid(moduleClickedOut, clickedModuleName, clickedCategoryName);
+        ImGui::End();
+        return;
+    }
+
     ImVec2 avail = ImGui::GetContentRegionAvail();
     int wantWidth = static_cast<int>(avail.x);
     int wantHeight = static_cast<int>(avail.y);
@@ -273,10 +444,26 @@ int main() {
 
     std::unique_ptr<underhood::ISimulationModule> activeModule;
     std::string activeModuleName;
+    std::string activeCategoryName;
     std::vector<underhood::Parameter> activeParams;
     int pendingValue = 0;
 
     bool layoutBuilt = false;
+
+    auto selectModule = [&](const std::string& name, const std::string& category) {
+        if (name == activeModuleName) return;
+        activeModule = underhood::ModuleRegistry::instance().create(name);
+        activeModuleName = name;
+        activeCategoryName = category;
+        pendingValue = 0;
+        if (activeModule && activeModule->kind() == underhood::ModuleKind::Step) {
+            auto stepModule = static_cast<underhood::IStepSimulationModule*>(activeModule.get());
+            activeParams = stepModule->parameters();
+            stepModule->reset(activeParams);
+        } else {
+            activeParams.clear();
+        }
+    };
 
     while (!WindowShouldClose()) {
         const underhood::Palette& palette = underhood::GetPalette(!lightTheme);
@@ -295,9 +482,20 @@ int main() {
         ImGuiWindowFlags hostFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
                                       ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                                       ImGuiWindowFlags_NoBringToFrontOnFocus |
-                                      ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
+                                      ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground |
+                                      ImGuiWindowFlags_MenuBar;
         ImGui::Begin("##DockHost", nullptr, hostFlags);
         ImGui::PopStyleVar(3);
+
+        bool themeChanged = false;
+        if (ImGui::BeginMenuBar()) {
+            DrawTopBar(activeModuleName, activeCategoryName, lightTheme, themeChanged);
+            ImGui::EndMenuBar();
+        }
+        if (themeChanged) {
+            underhood::ApplyTheme(!lightTheme);
+            canvas.setDarkTheme(!lightTheme);
+        }
 
         ImGuiID dockspaceId = ImGui::GetID("UnderhoodDockspace");
         if (!layoutBuilt) {
@@ -307,25 +505,12 @@ int main() {
         ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
         ImGui::End();
 
-        bool themeChanged = false;
         bool moduleClicked = false;
         std::string clickedModuleName;
-        DrawModulesPanel(activeModuleName, moduleClicked, clickedModuleName, lightTheme, themeChanged);
-        if (themeChanged) {
-            underhood::ApplyTheme(!lightTheme);
-            canvas.setDarkTheme(!lightTheme);
-        }
-        if (moduleClicked && clickedModuleName != activeModuleName) {
-            activeModule = underhood::ModuleRegistry::instance().create(clickedModuleName);
-            activeModuleName = clickedModuleName;
-            pendingValue = 0;
-            if (activeModule && activeModule->kind() == underhood::ModuleKind::Step) {
-                auto stepModule = static_cast<underhood::IStepSimulationModule*>(activeModule.get());
-                activeParams = stepModule->parameters();
-                stepModule->reset(activeParams);
-            } else {
-                activeParams.clear();
-            }
+        std::string clickedCategoryName;
+        DrawModulesPanel(activeModuleName, moduleClicked, clickedModuleName, clickedCategoryName);
+        if (moduleClicked) {
+            selectModule(clickedModuleName, clickedCategoryName);
         }
 
         DrawCodePanel(activeModule.get(), palette);
@@ -345,7 +530,14 @@ int main() {
             static_cast<underhood::IOperationalModule*>(activeModule.get())->update(GetFrameTime());
         }
 
-        DrawVisualizationPanel(activeModule.get(), canvas, palette, canvasTexture);
+        bool cardClicked = false;
+        std::string cardModuleName;
+        std::string cardCategoryName;
+        DrawVisualizationPanel(activeModule.get(), canvas, palette, canvasTexture, cardClicked,
+                                cardModuleName, cardCategoryName);
+        if (cardClicked) {
+            selectModule(cardModuleName, cardCategoryName);
+        }
 
         rlImGuiEnd();
         EndDrawing();
