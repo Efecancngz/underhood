@@ -58,11 +58,12 @@ void Canvas::drawBox(int x, int y, int width, int height, const std::string& lab
     }
 }
 
-void Canvas::drawArrow(int x1, int y1, int x2, int y2) const {
+void Canvas::drawArrow(int x1, int y1, int x2, int y2, BoxState state) const {
     const Palette& p = GetPalette(darkTheme_);
+    Color accent = accentFor(state, p);
     DrawLineEx(Vector2{static_cast<float>(x1), static_cast<float>(y1)},
-               Vector2{static_cast<float>(x2), static_cast<float>(y2)}, 2.0f, p.accentOwned);
-    DrawCircle(x2, y2, 4, p.accentOwned);
+               Vector2{static_cast<float>(x2), static_cast<float>(y2)}, 2.5f, accent);
+    DrawCircle(x2, y2, 5, accent);
 }
 
 void Canvas::drawText(const std::string& text, int x, int y) const {

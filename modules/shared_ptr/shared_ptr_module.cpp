@@ -87,6 +87,16 @@ void SharedPtrModule::render(underhood::Canvas& canvas) const {
                                  : (bAlive_ ? underhood::BoxState::Owned : underhood::BoxState::Empty);
     canvas.drawBox(250, 150, 120, 60, bAlive_ ? ("b -> " + std::to_string(value_)) : "b: (empty)",
                    bState);
+
+    // a and b both hold a reference into the same refcount/value while
+    // alive -- draw both arrows pointing up into the shared box instead of
+    // implying either one "owns" the other.
+    if (aAlive_) {
+        canvas.drawArrow(110, 150, 110, 110, aState);
+    }
+    if (bAlive_) {
+        canvas.drawArrow(310, 150, 170, 110, bState);
+    }
 }
 
 int SharedPtrModule::refCount() const {

@@ -66,6 +66,13 @@ void UniquePtrModule::render(underhood::Canvas& canvas) const {
                    stateFor(aValue_.has_value(), aJustChanged_));
     canvas.drawBox(250, 50, 120, 60, bValue_ ? ("b: " + std::to_string(*bValue_)) : "b: (empty)",
                    stateFor(bValue_.has_value(), bJustChanged_));
+
+    // Ownership only ever moves one way, a -> b -- draw the arrow once it
+    // has (b holds a value), flashed the same JustChanged color as the
+    // boxes on the step it happens.
+    if (bValue_.has_value()) {
+        canvas.drawArrow(170, 80, 250, 80, stateFor(true, aJustChanged_ || bJustChanged_));
+    }
 }
 
 bool UniquePtrModule::ownedByA() const {

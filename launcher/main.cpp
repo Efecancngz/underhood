@@ -19,6 +19,29 @@ constexpr int kWindowWidth = 1280;
 constexpr int kWindowHeight = 800;
 constexpr const char* kFontPath = UNDERHOOD_ASSETS_DIR "/fonts/Inter-Regular.ttf";
 
+// Modules draw in this fixed logical coordinate space (chosen to comfortably
+// fit every module's box layout, e.g. shared_ptr's rightmost box at x=370,
+// y=210, with margin) regardless of the actual Visualization panel's pixel
+// size. Canvas content is scaled+centered ("letterboxed") into whatever
+// panel size is available -- see letterboxCamera() -- so modules never need
+// to know or care how big the window is.
+constexpr float kLogicalCanvasWidth = 440.0f;
+constexpr float kLogicalCanvasHeight = 260.0f;
+
+Camera2D letterboxCamera(int textureWidth, int textureHeight) {
+    float scale = (textureWidth / kLogicalCanvasWidth < textureHeight / kLogicalCanvasHeight)
+                      ? textureWidth / kLogicalCanvasWidth
+                      : textureHeight / kLogicalCanvasHeight;
+    float offsetX = (textureWidth - kLogicalCanvasWidth * scale) * 0.5f;
+    float offsetY = (textureHeight - kLogicalCanvasHeight * scale) * 0.5f;
+    Camera2D camera{};
+    camera.offset = Vector2{offsetX, offsetY};
+    camera.target = Vector2{0.0f, 0.0f};
+    camera.rotation = 0.0f;
+    camera.zoom = scale;
+    return camera;
+}
+
 const char* kModulesPanel = "Modules";
 const char* kCodePanel = "Code";
 const char* kControlsPanel = "Controls";
@@ -149,7 +172,10 @@ void DrawVisualizationPanel(underhood::ISimulationModule* module, underhood::Can
     BeginTextureMode(canvasTexture);
     ClearBackground(palette.background);
     if (module != nullptr) {
+        Camera2D camera = letterboxCamera(wantWidth, wantHeight);
+        BeginMode2D(camera);
         module->render(canvas);
+        EndMode2D();
     }
     EndTextureMode();
 

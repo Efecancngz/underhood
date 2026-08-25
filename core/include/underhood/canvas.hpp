@@ -26,7 +26,7 @@ public:
 
     void drawBox(int x, int y, int width, int height, const std::string& label,
                  BoxState state) const;
-    void drawArrow(int x1, int y1, int x2, int y2) const;
+    void drawArrow(int x1, int y1, int x2, int y2, BoxState state) const;
     void drawText(const std::string& text, int x, int y) const;
 
 private:

@@ -70,6 +70,15 @@ void MoveSemanticsModule::render(underhood::Canvas& canvas) const {
                        : (r2Value_ ? underhood::BoxState::Owned : underhood::BoxState::Empty);
     canvas.drawBox(250, 50, 120, 60, r2Value_ ? ("r2: " + std::to_string(*r2Value_)) : "r2: (empty)",
                    r2State);
+
+    // The resource only ever moves one way, r1 -> r2 -- draw the arrow once
+    // it has (r2 holds a value), flashed the same JustChanged color as the
+    // boxes on the step it happens.
+    if (r2Value_.has_value()) {
+        auto arrowState = (r1JustChanged_ || r2JustChanged_) ? underhood::BoxState::JustChanged
+                                                               : underhood::BoxState::Owned;
+        canvas.drawArrow(170, 80, 250, 80, arrowState);
+    }
 }
 
 std::optional<int> MoveSemanticsModule::r1Value() const {
