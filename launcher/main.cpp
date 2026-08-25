@@ -139,24 +139,8 @@ void DrawCodePanel(const underhood::ISimulationModule* module) {
     ImGui::End();
 }
 
-void DrawControlsPanel(const underhood::ISimulationModule* module,
-                        std::vector<underhood::Parameter>& params, bool& resetRequested,
-                        bool& stepRequested) {
-    ImGui::Begin(kControlsPanel);
-    if (module == nullptr) {
-        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], "No simulation selected.");
-        ImGui::End();
-        return;
-    }
-
-    if (module->kind() != underhood::ModuleKind::Step) {
-        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled],
-                            "Operational modules have operation buttons in the visualization.");
-        ImGui::End();
-        return;
-    }
-
-    auto stepModule = static_cast<const underhood::IStepSimulationModule*>(module);
+void DrawStepControls(std::vector<underhood::Parameter>& params, bool& resetRequested,
+                       bool& stepRequested) {
     for (auto& param : params) {
         ImGui::InputInt(param.name.c_str(), &param.value);
         if (param.value < param.minValue) param.value = param.minValue;
@@ -168,6 +152,51 @@ void DrawControlsPanel(const underhood::ISimulationModule* module,
     }
     if (ImGui::Button("Next Step", ImVec2(-1, 0))) {
         stepRequested = true;
+    }
+}
+
+// takesValue is currently informational only -- v1 shows one shared value
+// input regardless of which operation the user is about to click, rather
+// than hiding/graying it out per-button. Operations that ignore the value
+// (e.g. "Pop") simply don't read it in performOperation().
+void DrawOperationalControls(underhood::IOperationalModule* module, int& pendingValue) {
+    ImGui::InputInt("Value", &pendingValue);
+    ImGui::Spacing();
+
+    for (const auto& operation : module->operations()) {
+        bool enabled = module->canPerform(operation.label);
+        ImGui::BeginDisabled(!enabled);
+        if (ImGui::Button(operation.label.c_str(), ImVec2(-1, 0))) {
+            module->performOperation(operation.label, pendingValue);
+        }
+        ImGui::EndDisabled();
+    }
+
+    ImGui::Spacing();
+    if (ImGui::Button("Clear", ImVec2(-1, 0))) {
+        module->clear();
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], "HISTORY");
+    ImGui::BeginChild("##history", ImVec2(0, 160), true);
+    auto history = module->history();
+    for (auto it = history.rbegin(); it != history.rend(); ++it) {
+        ImGui::TextUnformatted(it->c_str());
+    }
+    ImGui::EndChild();
+}
+
+void DrawControlsPanel(underhood::ISimulationModule* module, std::vector<underhood::Parameter>& params,
+                        int& pendingValue, bool& resetRequested, bool& stepRequested) {
+    ImGui::Begin(kControlsPanel);
+    if (module == nullptr) {
+        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], "No simulation selected.");
+    } else if (module->kind() == underhood::ModuleKind::Step) {
+        DrawStepControls(params, resetRequested, stepRequested);
+    } else {
+        DrawOperationalControls(static_cast<underhood::IOperationalModule*>(module), pendingValue);
     }
     ImGui::End();
 }
@@ -237,6 +266,7 @@ int main() {
     std::unique_ptr<underhood::ISimulationModule> activeModule;
     std::string activeModuleName;
     std::vector<underhood::Parameter> activeParams;
+    int pendingValue = 0;
 
     bool layoutBuilt = false;
 
@@ -280,10 +310,13 @@ int main() {
         if (moduleClicked) {
             activeModule = underhood::ModuleRegistry::instance().create(clickedModuleName);
             activeModuleName = clickedModuleName;
+            pendingValue = 0;
             if (activeModule && activeModule->kind() == underhood::ModuleKind::Step) {
                 auto stepModule = static_cast<underhood::IStepSimulationModule*>(activeModule.get());
                 activeParams = stepModule->parameters();
                 stepModule->reset(activeParams);
+            } else {
+                activeParams.clear();
             }
         }
 
@@ -291,7 +324,7 @@ int main() {
 
         bool resetRequested = false;
         bool stepRequested = false;
-        DrawControlsPanel(activeModule.get(), activeParams, resetRequested, stepRequested);
+        DrawControlsPanel(activeModule.get(), activeParams, pendingValue, resetRequested, stepRequested);
         if (resetRequested && activeModule && activeModule->kind() == underhood::ModuleKind::Step) {
             auto stepModule = static_cast<underhood::IStepSimulationModule*>(activeModule.get());
             stepModule->reset(activeParams);
@@ -299,6 +332,9 @@ int main() {
         if (stepRequested && activeModule && activeModule->kind() == underhood::ModuleKind::Step) {
             auto stepModule = static_cast<underhood::IStepSimulationModule*>(activeModule.get());
             stepModule->step();
+        }
+        if (activeModule && activeModule->kind() == underhood::ModuleKind::Operational) {
+            static_cast<underhood::IOperationalModule*>(activeModule.get())->update(GetFrameTime());
         }
 
         DrawVisualizationPanel(activeModule.get(), canvas, palette, canvasTexture);
