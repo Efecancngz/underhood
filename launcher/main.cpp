@@ -17,8 +17,6 @@ namespace {
 
 constexpr int kWindowWidth = 1280;
 constexpr int kWindowHeight = 800;
-constexpr int kCanvasTextureWidth = 640;
-constexpr int kCanvasTextureHeight = 420;
 constexpr const char* kFontPath = UNDERHOOD_ASSETS_DIR "/fonts/Inter-Regular.ttf";
 
 const char* kModulesPanel = "Modules";
@@ -128,8 +126,33 @@ void DrawControlsPanel(std::vector<underhood::Parameter>& params, bool hasActive
     ImGui::End();
 }
 
-void DrawVisualizationPanel(const RenderTexture2D& canvasTexture) {
+// Renders the active module (if any) into canvasTexture at exactly the
+// panel's current content-region size, then displays it -- 1:1, never
+// scaled by ImGui/rlImGui, so text and box edges stay crisp regardless of
+// window size. Recreates the texture only when the panel is actually
+// resized (checked every frame, cheap: two int comparisons).
+void DrawVisualizationPanel(underhood::ISimulationModule* module, underhood::Canvas& canvas,
+                             const underhood::Palette& palette, RenderTexture2D& canvasTexture) {
     ImGui::Begin(kVisualizationPanel);
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    int wantWidth = static_cast<int>(avail.x);
+    int wantHeight = static_cast<int>(avail.y);
+    // Guard against 0-size (panel mid-drag/collapsed) and runaway textures.
+    wantWidth = wantWidth < 64 ? 64 : (wantWidth > 4096 ? 4096 : wantWidth);
+    wantHeight = wantHeight < 64 ? 64 : (wantHeight > 4096 ? 4096 : wantHeight);
+
+    if (wantWidth != canvasTexture.texture.width || wantHeight != canvasTexture.texture.height) {
+        UnloadRenderTexture(canvasTexture);
+        canvasTexture = LoadRenderTexture(wantWidth, wantHeight);
+    }
+
+    BeginTextureMode(canvasTexture);
+    ClearBackground(palette.background);
+    if (module != nullptr) {
+        module->render(canvas);
+    }
+    EndTextureMode();
+
     rlImGuiImageRenderTextureFit(&canvasTexture, true);
     ImGui::End();
 }
@@ -160,7 +183,7 @@ int main() {
     canvas.setDarkTheme(!lightTheme);
     canvas.setFont(sharedFont);
 
-    RenderTexture2D canvasTexture = LoadRenderTexture(kCanvasTextureWidth, kCanvasTextureHeight);
+    RenderTexture2D canvasTexture = LoadRenderTexture(64, 64);  // resized on first frame
 
     std::unique_ptr<underhood::ISimulationModule> activeModule;
     std::string activeModuleName;
@@ -224,13 +247,7 @@ int main() {
             activeModule->step();
         }
 
-        BeginTextureMode(canvasTexture);
-        ClearBackground(palette.background);
-        if (activeModule) {
-            activeModule->render(canvas);
-        }
-        EndTextureMode();
-        DrawVisualizationPanel(canvasTexture);
+        DrawVisualizationPanel(activeModule.get(), canvas, palette, canvasTexture);
 
         rlImGuiEnd();
         EndDrawing();
