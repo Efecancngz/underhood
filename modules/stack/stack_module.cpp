@@ -69,24 +69,28 @@ void StackModule::render(underhood::Canvas& canvas) const {
     constexpr int kBaseY = 230;  // bottom of the stack; grows upward
 
     auto drawEntry = [&](const underhood::AnimatedList<int>::Entry& entry, std::size_t stackIndex,
-                          bool isTop) {
-        float progress = entry.insertAnim.progress();
+                          bool isTop, bool isRemoving) {
+        // A removing entry shares insertAnim with a fresh insert (see
+        // AnimatedList::removeAt), so its progress() also runs 0->1 --
+        // inverting it here fades the popped box OUT as it settles into its
+        // above-the-top ghost slot, instead of fading IN like a fresh push.
+        float progress = isRemoving ? 1.0f - entry.insertAnim.progress() : entry.insertAnim.progress();
         int y = kBaseY - static_cast<int>(stackIndex) * (kBoxHeight + kBoxSpacing);
         // Slide in from above while inserting/removing.
         int slideOffset = static_cast<int>((1.0f - progress) * 40.0f);
         underhood::BoxState state = entry.insertAnim.isAnimating() ? underhood::BoxState::JustChanged
                                      : isTop                        ? underhood::BoxState::Owned
                                                                      : underhood::BoxState::Empty;
-        canvas.drawBox(kBaseX, y - slideOffset, kBoxWidth, kBoxHeight, std::to_string(entry.value),
-                        state);
+        canvas.drawBox(kBaseX, y - slideOffset, kBoxWidth, kBoxHeight, std::to_string(entry.value), state,
+                        progress);
     };
 
     const auto& entries = entries_.entries();
     for (std::size_t i = 0; i < entries.size(); ++i) {
-        drawEntry(entries[i], i, i + 1 == entries.size());
+        drawEntry(entries[i], i, i + 1 == entries.size(), /*isRemoving=*/false);
     }
     if (const auto* removing = entries_.removingEntry()) {
-        drawEntry(*removing, entries.size(), false);
+        drawEntry(*removing, entries.size(), false, /*isRemoving=*/true);
     }
 }
 

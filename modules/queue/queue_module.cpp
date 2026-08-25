@@ -85,7 +85,8 @@ void QueueModule::render(underhood::Canvas& canvas) const {
         underhood::BoxState state = entry.insertAnim.isAnimating() ? underhood::BoxState::JustChanged
                                      : isFront                     ? underhood::BoxState::Owned
                                                                      : underhood::BoxState::Empty;
-        canvas.drawBox(x, kBaseY - dropOffset, boxWidth, kBoxHeight, std::to_string(entry.value), state);
+        canvas.drawBox(x, kBaseY - dropOffset, boxWidth, kBoxHeight, std::to_string(entry.value), state,
+                       progress);
     };
 
     for (std::size_t i = 0; i < entries.size(); ++i) {

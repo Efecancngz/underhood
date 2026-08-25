@@ -87,7 +87,8 @@ void SinglyLinkedListModule::render(underhood::Canvas& canvas) const {
         int dropOffset = static_cast<int>((1.0f - progress) * 30.0f);
         underhood::BoxState state =
             entry.insertAnim.isAnimating() ? underhood::BoxState::JustChanged : underhood::BoxState::Owned;
-        canvas.drawBox(x, kBaseY - dropOffset, boxWidth, kBoxHeight, std::to_string(entry.value), state);
+        canvas.drawBox(x, kBaseY - dropOffset, boxWidth, kBoxHeight, std::to_string(entry.value), state,
+                       progress);
     };
 
     for (std::size_t i = 0; i < entries.size(); ++i) {

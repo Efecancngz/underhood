@@ -402,6 +402,16 @@ void DrawVisualizationPanel(underhood::ISimulationModule* module, underhood::Can
 
     BeginTextureMode(canvasTexture);
     ClearBackground(palette.background);
+    // Subtle dotted grid (visualgo/dsa-visualizer-style texture) behind the
+    // module's content -- screen-space, not letterbox-scaled, so it always
+    // reads as a fixed background regardless of the logical canvas size.
+    constexpr int kGridSpacing = 24;
+    Color dotColor = Fade(palette.border, 0.7f);
+    for (int gx = kGridSpacing / 2; gx < wantWidth; gx += kGridSpacing) {
+        for (int gy = kGridSpacing / 2; gy < wantHeight; gy += kGridSpacing) {
+            DrawCircle(gx, gy, 1.3f, dotColor);
+        }
+    }
     if (module != nullptr) {
         Camera2D camera = letterboxCamera(wantWidth, wantHeight);
         BeginMode2D(camera);

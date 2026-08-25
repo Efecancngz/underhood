@@ -24,8 +24,11 @@ public:
     // == 0), falls back to raylib's built-in default font.
     void setFont(Font font);
 
-    void drawBox(int x, int y, int width, int height, const std::string& label,
-                 BoxState state) const;
+    // alpha (0..1) fades the whole box (fill, border, and label) -- used by
+    // operational modules to fade a box in/out over its insert/remove
+    // animation. Defaults to fully opaque so existing callers are unaffected.
+    void drawBox(int x, int y, int width, int height, const std::string& label, BoxState state,
+                 float alpha = 1.0f) const;
     void drawArrow(int x1, int y1, int x2, int y2, BoxState state) const;
     void drawText(const std::string& text, int x, int y) const;
 
