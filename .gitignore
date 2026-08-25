@@ -7,4 +7,5 @@ CMakeFiles/
 .vs/
 .vscode/
 *.user
+.worktrees/
 mcp.json
