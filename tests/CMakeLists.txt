@@ -4,6 +4,7 @@ add_executable(underhood_tests
   test_unique_ptr_module.cpp
   test_shared_ptr_module.cpp
   test_move_semantics_module.cpp
+  test_animation.cpp
 )
 target_link_libraries(underhood_tests PRIVATE
   underhood_core
