@@ -22,13 +22,19 @@ public:
         Animator insertAnim;
     };
 
+    // index is caller-guarded (all current callers only ever pass 0 or
+    // size()) -- these are a cheap safety net, not a substitute for callers
+    // checking bounds themselves. An out-of-range index is a no-op rather
+    // than clamped, so it never silently inserts/removes at the wrong slot.
     void insertAt(std::size_t index, T value) {
+        if (index > entries_.size()) return;
         Entry entry{std::move(value), Animator{}};
         entry.insertAnim.start();
         entries_.insert(entries_.begin() + static_cast<std::ptrdiff_t>(index), std::move(entry));
     }
 
     void removeAt(std::size_t index) {
+        if (index >= entries_.size()) return;
         Entry removed = std::move(entries_[index]);
         entries_.erase(entries_.begin() + static_cast<std::ptrdiff_t>(index));
         removingEntry_ = std::move(removed);

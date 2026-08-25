@@ -73,18 +73,19 @@ int SharedPtrModule::currentHighlightedLine() const {
 }
 
 void SharedPtrModule::render(underhood::Canvas& canvas) const {
-    auto refState = refCountJustChanged_
-                         ? underhood::BoxState::JustChanged
-                         : (refCount_ > 0 ? underhood::BoxState::Owned : underhood::BoxState::Empty);
+    auto stateFor = [](bool alive, bool justChanged) {
+        if (justChanged) return underhood::BoxState::JustChanged;
+        return alive ? underhood::BoxState::Owned : underhood::BoxState::Empty;
+    };
+
+    auto refState = stateFor(refCount_ > 0, refCountJustChanged_);
     canvas.drawBox(50, 50, 160, 60, "refcount: " + std::to_string(refCount_), refState);
 
-    auto aState = aJustChanged_ ? underhood::BoxState::JustChanged
-                                 : (aAlive_ ? underhood::BoxState::Owned : underhood::BoxState::Empty);
+    auto aState = stateFor(aAlive_, aJustChanged_);
     canvas.drawBox(50, 150, 120, 60, aAlive_ ? ("a -> " + std::to_string(value_)) : "a: (empty)",
                    aState);
 
-    auto bState = bJustChanged_ ? underhood::BoxState::JustChanged
-                                 : (bAlive_ ? underhood::BoxState::Owned : underhood::BoxState::Empty);
+    auto bState = stateFor(bAlive_, bJustChanged_);
     canvas.drawBox(250, 150, 120, 60, bAlive_ ? ("b -> " + std::to_string(value_)) : "b: (empty)",
                    bState);
 

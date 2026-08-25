@@ -59,15 +59,16 @@ int MoveSemanticsModule::currentHighlightedLine() const {
 }
 
 void MoveSemanticsModule::render(underhood::Canvas& canvas) const {
-    auto r1State = r1JustChanged_
-                       ? underhood::BoxState::JustChanged
-                       : (r1Value_ ? underhood::BoxState::Owned : underhood::BoxState::Empty);
+    auto stateFor = [](bool hasValue, bool justChanged) {
+        if (justChanged) return underhood::BoxState::JustChanged;
+        return hasValue ? underhood::BoxState::Owned : underhood::BoxState::Empty;
+    };
+
+    auto r1State = stateFor(r1Value_.has_value(), r1JustChanged_);
     canvas.drawBox(50, 50, 120, 60, r1Value_ ? ("r1: " + std::to_string(*r1Value_)) : "r1: (empty)",
                    r1State);
 
-    auto r2State = r2JustChanged_
-                       ? underhood::BoxState::JustChanged
-                       : (r2Value_ ? underhood::BoxState::Owned : underhood::BoxState::Empty);
+    auto r2State = stateFor(r2Value_.has_value(), r2JustChanged_);
     canvas.drawBox(250, 50, 120, 60, r2Value_ ? ("r2: " + std::to_string(*r2Value_)) : "r2: (empty)",
                    r2State);
 
@@ -75,8 +76,7 @@ void MoveSemanticsModule::render(underhood::Canvas& canvas) const {
     // it has (r2 holds a value), flashed the same JustChanged color as the
     // boxes on the step it happens.
     if (r2Value_.has_value()) {
-        auto arrowState = (r1JustChanged_ || r2JustChanged_) ? underhood::BoxState::JustChanged
-                                                               : underhood::BoxState::Owned;
+        auto arrowState = stateFor(true, r1JustChanged_ || r2JustChanged_);
         canvas.drawArrow(170, 80, 250, 80, arrowState);
     }
 }

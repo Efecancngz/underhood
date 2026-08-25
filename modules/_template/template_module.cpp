@@ -44,9 +44,14 @@ void TemplateModule::render(underhood::Canvas& canvas) const {
 // namespace {
 // struct TemplateRegistrar {
 //     TemplateRegistrar() {
-//         underhood::ModuleRegistry::instance().registerModule("template", []() {
-//             return std::make_unique<underhood::modules::TemplateModule>();
-//         });
+//         // Third argument groups this module in the launcher sidebar --
+//         // pick the category it belongs under (e.g. "Smart Pointers",
+//         // "Data Structures", or a new one), matching the real modules'
+//         // pattern.
+//         underhood::ModuleRegistry::instance().registerModule(
+//             "template",
+//             []() { return std::make_unique<underhood::modules::TemplateModule>(); },
+//             "Data Structures");
 //     }
 // };
 // const TemplateRegistrar templateRegistrar;

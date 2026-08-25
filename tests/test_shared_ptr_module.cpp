@@ -28,3 +28,11 @@ TEST_CASE("SharedPtrModule tracks ref count through share and release") {
 
     REQUIRE_FALSE(module.step());  // finished
 }
+
+TEST_CASE("SharedPtrModule exposes its parameter with default 10") {
+    underhood::modules::SharedPtrModule module;
+    auto params = module.parameters();
+    REQUIRE(params.size() == 1);
+    REQUIRE(params[0].name == "initial_value");
+    REQUIRE(params[0].value == 10);
+}
