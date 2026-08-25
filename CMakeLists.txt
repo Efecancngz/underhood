@@ -10,6 +10,7 @@ option(BUILD_MODULE_MOVE_SEMANTICS "Build the move_semantics simulation module" 
 option(BUILD_MODULE_STACK "Build the stack simulation module" ON)
 option(BUILD_MODULE_QUEUE "Build the queue simulation module" ON)
 option(BUILD_MODULE_SINGLY_LINKED_LIST "Build the singly linked list simulation module" ON)
+option(BUILD_MODULE_CIRCULAR_LINKED_LIST "Build the circular linked list simulation module" ON)
 
 include(FetchContent)
 

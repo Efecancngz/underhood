@@ -21,3 +21,7 @@ endif()
 if(BUILD_MODULE_SINGLY_LINKED_LIST)
   add_subdirectory(singly_linked_list)
 endif()
+
+if(BUILD_MODULE_CIRCULAR_LINKED_LIST)
+  add_subdirectory(circular_linked_list)
+endif()

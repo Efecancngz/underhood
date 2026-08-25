@@ -9,6 +9,7 @@ add_executable(underhood_tests
   test_stack_module.cpp
   test_queue_module.cpp
   test_singly_linked_list_module.cpp
+  test_circular_linked_list_module.cpp
 )
 target_link_libraries(underhood_tests PRIVATE
   underhood_core
@@ -18,6 +19,7 @@ target_link_libraries(underhood_tests PRIVATE
   underhood_module_stack
   underhood_module_queue
   underhood_module_singly_linked_list
+  underhood_module_circular_linked_list
   Catch2::Catch2WithMain
 )
 
