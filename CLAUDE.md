@@ -26,3 +26,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - The full Idle/Configuring/Stepping/Finished state diagram in the design spec is collapsed in the launcher UI: parameters are editable at any time, and there's no distinct visual "Finished" state beyond `step()` returning `false`. Revisit if this causes confusion in practice.
 - The spec calls for "animated" state updates; v1 renders each `step()` result as an instant snap (no interpolation/tweening between states). The state itself still changes per step and is visually clear, but there's no motion. If step-to-step snapping turns out to hurt retention, add tweening (e.g. lerp box positions/opacity over a few frames) inside `Canvas`/`render()` without touching the `ISimulationModule` interface.
+
+## Visual design
+
+Box color is semantic, not decorative: gray = empty/nullptr, teal = holds a value, amber = changed on the last step (the highlighted code line uses the same amber, so "what just happened" reads the same way in both panels). Palette is deliberately flat and muted — no gradients, no glassmorphism, none of raylib's default neon colors — closer to how data-structure visualizers (e.g. visualgo.net) present state than to a typical UI mockup. Both a dark and a light variant of this palette exist (`Canvas::setDarkTheme`, toggled from the "Theme" panel); color is reinforcement, not the only signal — labels always spell out the state in words too.

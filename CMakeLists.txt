@@ -57,6 +57,7 @@ target_link_libraries(rlImGui PUBLIC raylib imgui)
 
 add_subdirectory(core)
 add_subdirectory(modules)
+add_subdirectory(launcher)
 
 enable_testing()
 add_subdirectory(tests)

@@ -1,0 +1,12 @@
+add_executable(underhood main.cpp)
+target_link_libraries(underhood PRIVATE underhood_core rlImGui)
+
+if(BUILD_MODULE_UNIQUE_PTR)
+  target_link_libraries(underhood PRIVATE underhood_module_unique_ptr)
+endif()
+if(BUILD_MODULE_SHARED_PTR)
+  target_link_libraries(underhood PRIVATE underhood_module_shared_ptr)
+endif()
+if(BUILD_MODULE_MOVE_SEMANTICS)
+  target_link_libraries(underhood PRIVATE underhood_module_move_semantics)
+endif()
