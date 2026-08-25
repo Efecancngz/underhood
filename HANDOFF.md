@@ -2,24 +2,23 @@
 Son güncelleme: 2026-08-25, güncelleyen: Claude Sonnet 5
 
 ## Şu an ne yapılıyor
-Core framework (ModuleRegistry, Canvas, ISimulationModule) + 3 modül (unique_ptr, shared_ptr, move_semantics) + launcher tamamlandı, CI yeşil.
+Core framework + 3 "Smart Pointers" modülü (unique_ptr, shared_ptr, move_semantics) + 4 "Data Structures" modülü (stack, queue, linked_list_singly, linked_list_circular) + launcher tamamlandı. İki modül türü var: IStepSimulationModule (sabit senaryo) ve IOperationalModule (açık uçlu Push/Pop tarzı operasyonlar + animasyon + geçmiş). CI yeşil (Task 12'nin push+doğrulama adımı hâlâ bekliyor, ayrı not).
 
 ## Sıradaki somut adım
-Yeni bir modül eklemek istenirse CONTRIBUTING.md'deki 6 adımlık akışı takip et. Framework tarafında planlanmış bir sonraki iş yok — bir sonraki adım kullanıcı talebine bağlı.
+Yeni bir modül eklemek istenirse CONTRIBUTING.md'deki akışı takip et (önce IStepSimulationModule mi IOperationalModule mü karar ver). Framework tarafında planlanmış bir sonraki iş yok.
 
 ## Bilinmesi gerekenler
-- Launcher UI, spec'teki Idle/Configuring/Stepping/Finished state diyagramını tam birebir uygulamıyor (parametreler her an düzenlenebilir, ayrı bir "Finished" görünümü yok) — bkz. CLAUDE.md "Known simplifications".
-- v1'de step() geçişleri anlık (animasyon/tween yok) — spec "animasyonlu" istiyordu, bilinçli bir v1 kısıtlaması, CLAUDE.md'de not düşüldü.
-- Modüller OBJECT library olmak zorunda (STATIC değil) — sebep docs/architecture.md'de.
-- Task 12'nin push+CI-yeşil doğrulaması (plan Step 3) yapılmadı — repoda henüz git remote yok, push kullanıcı onayı bekliyor.
-- Kullanıcı uygulamayı çalıştırıp fonksiyonel olarak doğruladı (2026-08-25) ama Dear ImGui'nin varsayılan stilini (padding/rounding/font/spacing hiç özelleştirilmedi) görsel olarak zayıf buldu — bir sonraki adım bu konuda planlanacak, henüz kapsam/plan belirlenmedi.
+- Circular linked list'in "başa dönüş" oku gerçek bir kavis değil, düz çizgi + etiket (bkz. docs/superpowers/specs/2026-08-25-underhood-operational-modules-design.md "Bilinen sadeleştirmeler").
+- Tüm Data Structures modülleri max 8 eleman, kullanıcı tarafından ayarlanamaz.
+- Task 12'nin push+CI-yeşil doğrulaması hâlâ yapılmadı — repoda henüz git remote yok.
 
 ## İlgili dosyalar
-- docs/superpowers/specs/2026-08-24-underhood-core-design.md — tam tasarım kararları
-- docs/superpowers/plans/2026-08-24-underhood-core-and-first-modules.md — bu implementasyon planı (tamamlandı)
-- CONTRIBUTING.md — yeni modül ekleme rehberi
+- docs/superpowers/specs/2026-08-24-underhood-core-design.md — çekirdek framework tasarımı
+- docs/superpowers/specs/2026-08-25-underhood-operational-modules-design.md — bu planın tasarımı
+- docs/superpowers/plans/2026-08-25-underhood-operational-modules.md — bu implementasyon planı (tamamlandı)
+- CONTRIBUTING.md — yeni modül ekleme rehberi (her iki modül türü için)
 
 ## Son 3 commit
-- d805862 chore: add cross-platform CI workflow
-- 4ddec0a feat: add launcher with menu, code panel, parameter controls, and theming
-- 7b86d0a feat: add move_semantics simulation module
+- 0d1ab5f feat: add circular linked list simulation module
+- 0cc13fa feat: add singly linked list simulation module
+- 5f0717c feat: add queue simulation module
