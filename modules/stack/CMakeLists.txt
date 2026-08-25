@@ -1,0 +1,3 @@
+add_library(underhood_module_stack OBJECT stack_module.cpp)
+target_include_directories(underhood_module_stack PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(underhood_module_stack PUBLIC underhood_core)

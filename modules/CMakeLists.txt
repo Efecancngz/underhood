@@ -9,3 +9,7 @@ endif()
 if(BUILD_MODULE_MOVE_SEMANTICS)
   add_subdirectory(move_semantics)
 endif()
+
+if(BUILD_MODULE_STACK)
+  add_subdirectory(stack)
+endif()

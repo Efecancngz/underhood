@@ -6,12 +6,14 @@ add_executable(underhood_tests
   test_move_semantics_module.cpp
   test_animation.cpp
   test_animated_list.cpp
+  test_stack_module.cpp
 )
 target_link_libraries(underhood_tests PRIVATE
   underhood_core
   underhood_module_unique_ptr
   underhood_module_shared_ptr
   underhood_module_move_semantics
+  underhood_module_stack
   Catch2::Catch2WithMain
 )
 

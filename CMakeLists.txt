@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(BUILD_MODULE_UNIQUE_PTR "Build the unique_ptr simulation module" ON)
 option(BUILD_MODULE_SHARED_PTR "Build the shared_ptr simulation module" ON)
 option(BUILD_MODULE_MOVE_SEMANTICS "Build the move_semantics simulation module" ON)
+option(BUILD_MODULE_STACK "Build the stack simulation module" ON)
 
 include(FetchContent)
 
