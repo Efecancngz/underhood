@@ -3,16 +3,28 @@
 #include <string>
 #include <vector>
 
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include "imgui.h"
+#include "imgui_internal.h"  // DockBuilder* -- programmatic initial layout
 #include "raylib.h"
 #include "rlImGui.h"
 #include "underhood/canvas.hpp"
 #include "underhood/module_registry.hpp"
 #include "underhood/simulation_module.hpp"
+#include "underhood/theme.hpp"
 
 namespace {
 
-enum class AppState { Menu, Simulating };
+constexpr int kWindowWidth = 1280;
+constexpr int kWindowHeight = 800;
+constexpr int kCanvasTextureWidth = 640;
+constexpr int kCanvasTextureHeight = 420;
+constexpr const char* kFontPath = UNDERHOOD_ASSETS_DIR "/fonts/Inter-Regular.ttf";
+
+const char* kModulesPanel = "Modules";
+const char* kCodePanel = "Code";
+const char* kControlsPanel = "Controls";
+const char* kVisualizationPanel = "Visualization";
 
 std::vector<std::string> splitLines(const std::string& text) {
     std::vector<std::string> lines;
@@ -24,118 +36,208 @@ std::vector<std::string> splitLines(const std::string& text) {
     return lines;
 }
 
-void drawCodePanel(const underhood::ISimulationModule& module) {
-    ImGui::Begin("Code");
-    auto lines = splitLines(module.codeSnippet());
-    for (std::size_t i = 0; i < lines.size(); ++i) {
-        int lineNumber = static_cast<int>(i) + 1;
-        if (lineNumber == module.currentHighlightedLine()) {
-            // Amber, matching Canvas's JustChanged box color (see canvas.cpp) --
-            // the same color means "this is what just happened" in both panels.
-            ImGui::TextColored(ImVec4(0.90f, 0.62f, 0.0f, 1.0f), "%s", lines[i].c_str());
-        } else {
-            ImGui::Text("%s", lines[i].c_str());
+// Programmatic initial layout: left sidebar (Modules), right side split into
+// a Code strip on top and Controls/Visualization below it. Rebuilt only once
+// -- io.IniFilename is null (see main()) so ImGui never has a stale layout
+// to restore instead, and the user can still freely re-drag/resize panels
+// within a session.
+void BuildInitialLayout(ImGuiID dockspaceId) {
+    ImGui::DockBuilderRemoveNode(dockspaceId);
+    ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
+    ImGui::DockBuilderSetNodeSize(dockspaceId, ImGui::GetMainViewport()->Size);
+
+    ImGuiID rightId;
+    ImGuiID sidebarId = ImGui::DockBuilderSplitNode(dockspaceId, ImGuiDir_Left, 0.18f, nullptr, &rightId);
+
+    ImGuiID bottomId;
+    ImGuiID codeId = ImGui::DockBuilderSplitNode(rightId, ImGuiDir_Up, 0.32f, nullptr, &bottomId);
+
+    ImGuiID visualizationId;
+    ImGuiID controlsId =
+        ImGui::DockBuilderSplitNode(bottomId, ImGuiDir_Left, 0.32f, nullptr, &visualizationId);
+
+    ImGui::DockBuilderDockWindow(kModulesPanel, sidebarId);
+    ImGui::DockBuilderDockWindow(kCodePanel, codeId);
+    ImGui::DockBuilderDockWindow(kControlsPanel, controlsId);
+    ImGui::DockBuilderDockWindow(kVisualizationPanel, visualizationId);
+    ImGui::DockBuilderFinish(dockspaceId);
+}
+
+void DrawModulesPanel(const std::string& activeModuleName, bool& moduleClickedOut,
+                       std::string& clickedModuleName, bool& lightTheme, bool& themeChanged) {
+    ImGui::Begin(kModulesPanel);
+    ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], "SIMULATIONS");
+    ImGui::Spacing();
+
+    for (const auto& moduleName : underhood::ModuleRegistry::instance().moduleNames()) {
+        bool selected = (moduleName == activeModuleName);
+        if (ImGui::Selectable(moduleName.c_str(), selected, 0, ImVec2(0, 32))) {
+            moduleClickedOut = true;
+            clickedModuleName = moduleName;
         }
     }
-    ImGui::End();
-}
 
-void drawParameterPanel(std::vector<underhood::Parameter>& params, bool& resetRequested,
-                         bool& stepRequested, bool& backRequested) {
-    ImGui::Begin("Controls");
-    for (auto& param : params) {
-        ImGui::SliderInt(param.name.c_str(), &param.value, param.minValue, param.maxValue);
-    }
-    if (ImGui::Button("Reset")) {
-        resetRequested = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Next Step")) {
-        stepRequested = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Back to Menu")) {
-        backRequested = true;
-    }
-    ImGui::End();
-}
-
-void drawThemePanel(bool& lightTheme, bool& themeChanged) {
-    ImGui::Begin("Theme");
+    ImGui::SetCursorPosY(ImGui::GetWindowHeight() - 50.0f);
+    ImGui::Separator();
     if (ImGui::Checkbox("Light theme", &lightTheme)) {
         themeChanged = true;
     }
     ImGui::End();
 }
 
+void DrawCodePanel(const underhood::ISimulationModule* module) {
+    ImGui::Begin(kCodePanel);
+    if (module == nullptr) {
+        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled],
+                            "Select a simulation from the left to see its code.");
+    } else {
+        auto lines = splitLines(module->codeSnippet());
+        for (std::size_t i = 0; i < lines.size(); ++i) {
+            int lineNumber = static_cast<int>(i) + 1;
+            if (lineNumber == module->currentHighlightedLine()) {
+                // Amber, matching Canvas's JustChanged box color -- the same
+                // color means "this is what just happened" in both panels.
+                ImGui::TextColored(ImVec4(0.90f, 0.62f, 0.0f, 1.0f), "%s", lines[i].c_str());
+            } else {
+                ImGui::Text("%s", lines[i].c_str());
+            }
+        }
+    }
+    ImGui::End();
+}
+
+void DrawControlsPanel(std::vector<underhood::Parameter>& params, bool hasActiveModule,
+                        bool& resetRequested, bool& stepRequested) {
+    ImGui::Begin(kControlsPanel);
+    if (!hasActiveModule) {
+        ImGui::TextColored(ImGui::GetStyle().Colors[ImGuiCol_TextDisabled], "No simulation selected.");
+        ImGui::End();
+        return;
+    }
+
+    for (auto& param : params) {
+        ImGui::SliderInt(param.name.c_str(), &param.value, param.minValue, param.maxValue);
+    }
+    ImGui::Spacing();
+    if (ImGui::Button("Reset", ImVec2(-1, 0))) {
+        resetRequested = true;
+    }
+    if (ImGui::Button("Next Step", ImVec2(-1, 0))) {
+        stepRequested = true;
+    }
+    ImGui::End();
+}
+
+void DrawVisualizationPanel(const RenderTexture2D& canvasTexture) {
+    ImGui::Begin(kVisualizationPanel);
+    rlImGuiImageRenderTextureFit(&canvasTexture, true);
+    ImGui::End();
+}
+
 }  // namespace
 
 int main() {
-    InitWindow(1024, 768, "underhood");
+    InitWindow(kWindowWidth, kWindowHeight, "underhood");
     SetTargetFPS(60);
-    rlImGuiSetup(true);
-    ImGui::StyleColorsDark();
 
-    AppState state = AppState::Menu;
-    std::unique_ptr<underhood::ISimulationModule> activeModule;
-    std::vector<underhood::Parameter> activeParams;
-    underhood::Canvas canvas;
+    Font sharedFont = LoadFontEx(kFontPath, 32, nullptr, 0);
+    SetTextureFilter(sharedFont.texture, TEXTURE_FILTER_BILINEAR);
+
+    rlImGuiSetLoadFontsCallback([]() {
+        ImGuiIO& io = ImGui::GetIO();
+        io.Fonts->AddFontFromFileTTF(kFontPath, 18.0f);
+    });
+    rlImGuiSetup(true);
+
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.IniFilename = nullptr;  // fixed layout every run, see BuildInitialLayout
+
     bool lightTheme = false;
+    underhood::ApplyTheme(!lightTheme);
+
+    underhood::Canvas canvas;
+    canvas.setDarkTheme(!lightTheme);
+    canvas.setFont(sharedFont);
+
+    RenderTexture2D canvasTexture = LoadRenderTexture(kCanvasTextureWidth, kCanvasTextureHeight);
+
+    std::unique_ptr<underhood::ISimulationModule> activeModule;
+    std::string activeModuleName;
+    std::vector<underhood::Parameter> activeParams;
+
+    bool layoutBuilt = false;
 
     while (!WindowShouldClose()) {
-        Color backgroundColor = lightTheme ? RAYWHITE : Color{24, 24, 24, 255};
+        const underhood::Palette& palette = underhood::GetPalette(!lightTheme);
 
         BeginDrawing();
-        ClearBackground(backgroundColor);
+        ClearBackground(palette.background);
         rlImGuiBegin();
 
+        ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->WorkPos);
+        ImGui::SetNextWindowSize(viewport->WorkSize);
+        ImGui::SetNextWindowViewport(viewport->ID);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGuiWindowFlags hostFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+                                      ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                                      ImGuiWindowFlags_NoBringToFrontOnFocus |
+                                      ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
+        ImGui::Begin("##DockHost", nullptr, hostFlags);
+        ImGui::PopStyleVar(3);
+
+        ImGuiID dockspaceId = ImGui::GetID("UnderhoodDockspace");
+        if (!layoutBuilt) {
+            BuildInitialLayout(dockspaceId);
+            layoutBuilt = true;
+        }
+        ImGui::DockSpace(dockspaceId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+        ImGui::End();
+
         bool themeChanged = false;
-        drawThemePanel(lightTheme, themeChanged);
+        bool moduleClicked = false;
+        std::string clickedModuleName;
+        DrawModulesPanel(activeModuleName, moduleClicked, clickedModuleName, lightTheme, themeChanged);
         if (themeChanged) {
-            if (lightTheme) {
-                ImGui::StyleColorsLight();
-            } else {
-                ImGui::StyleColorsDark();
-            }
+            underhood::ApplyTheme(!lightTheme);
             canvas.setDarkTheme(!lightTheme);
         }
-
-        if (state == AppState::Menu) {
-            ImGui::Begin("underhood");
-            for (const auto& moduleName : underhood::ModuleRegistry::instance().moduleNames()) {
-                if (ImGui::Button(moduleName.c_str())) {
-                    activeModule = underhood::ModuleRegistry::instance().create(moduleName);
-                    activeParams = activeModule->parameters();
-                    activeModule->reset(activeParams);
-                    state = AppState::Simulating;
-                }
-            }
-            ImGui::End();
-        } else {
-            activeModule->render(canvas);
-            drawCodePanel(*activeModule);
-
-            bool resetRequested = false;
-            bool stepRequested = false;
-            bool backRequested = false;
-            drawParameterPanel(activeParams, resetRequested, stepRequested, backRequested);
-
-            if (resetRequested) {
-                activeModule->reset(activeParams);
-            }
-            if (stepRequested) {
-                activeModule->step();
-            }
-            if (backRequested) {
-                activeModule.reset();
-                state = AppState::Menu;
-            }
+        if (moduleClicked) {
+            activeModule = underhood::ModuleRegistry::instance().create(clickedModuleName);
+            activeModuleName = clickedModuleName;
+            activeParams = activeModule->parameters();
+            activeModule->reset(activeParams);
         }
+
+        DrawCodePanel(activeModule.get());
+
+        bool resetRequested = false;
+        bool stepRequested = false;
+        DrawControlsPanel(activeParams, activeModule != nullptr, resetRequested, stepRequested);
+        if (resetRequested && activeModule) {
+            activeModule->reset(activeParams);
+        }
+        if (stepRequested && activeModule) {
+            activeModule->step();
+        }
+
+        BeginTextureMode(canvasTexture);
+        ClearBackground(palette.background);
+        if (activeModule) {
+            activeModule->render(canvas);
+        }
+        EndTextureMode();
+        DrawVisualizationPanel(canvasTexture);
 
         rlImGuiEnd();
         EndDrawing();
     }
 
+    UnloadRenderTexture(canvasTexture);
+    UnloadFont(sharedFont);
     rlImGuiShutdown();
     CloseWindow();
     return 0;

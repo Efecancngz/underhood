@@ -1,30 +1,26 @@
 #include "underhood/canvas.hpp"
 
 #include "raylib.h"
+#include "underhood/theme.hpp"
 
 namespace underhood {
 
 namespace {
 
-// A deliberate, muted palette (not raylib's loud defaults): gray for
-// "nothing here," a calm teal for "holds a value," and amber for "this
-// just changed." Distinct enough to stay legible without relying on hue
-// alone -- the label text always states the state in words too.
-Color boxColor(BoxState state, bool dark) {
+Color accentFor(BoxState state, const Palette& p) {
     switch (state) {
         case BoxState::Empty:
-            return dark ? Color{110, 110, 110, 255} : Color{170, 170, 170, 255};
+            return p.accentEmpty;
         case BoxState::Owned:
-            return dark ? Color{86, 182, 194, 255} : Color{0, 121, 140, 255};
+            return p.accentOwned;
         case BoxState::JustChanged:
-            return dark ? Color{230, 159, 0, 255} : Color{204, 102, 0, 255};
+            return p.accentJustChanged;
     }
-    return dark ? Color{110, 110, 110, 255} : Color{170, 170, 170, 255};
+    return p.accentEmpty;
 }
 
-Color textColor(bool dark) {
-    return dark ? RAYWHITE : Color{30, 30, 30, 255};
-}
+constexpr float kBoxCornerRadius = 0.18f;  // roundness param for DrawRectangleRounded
+constexpr int kLabelFontSize = 17;
 
 }  // namespace
 
@@ -36,23 +32,46 @@ bool Canvas::isDarkTheme() const {
     return darkTheme_;
 }
 
+void Canvas::setFont(Font font) {
+    font_ = font;
+}
+
 void Canvas::drawBox(int x, int y, int width, int height, const std::string& label,
                       BoxState state) const {
-    Color color = boxColor(state, darkTheme_);
+    const Palette& p = GetPalette(darkTheme_);
+    Color accent = accentFor(state, p);
     Rectangle rect{static_cast<float>(x), static_cast<float>(y), static_cast<float>(width),
                    static_cast<float>(height)};
-    DrawRectangleLinesEx(rect, 2.0f, color);
-    DrawText(label.c_str(), x + 8, y + 8, 16, textColor(darkTheme_));
+
+    // Card look: filled surface, a thin accent-colored border carrying the
+    // semantic state (gray/teal/amber), matching the panel chrome around it
+    // instead of a bare outline floating on the raw background.
+    DrawRectangleRounded(rect, kBoxCornerRadius, 8, p.surface);
+    DrawRectangleRoundedLinesEx(rect, kBoxCornerRadius, 8, 2.0f, accent);
+
+    if (font_.texture.id != 0) {
+        DrawTextEx(font_, label.c_str(), Vector2{static_cast<float>(x + 10), static_cast<float>(y + 10)},
+                   static_cast<float>(kLabelFontSize), 0.0f, p.textPrimary);
+    } else {
+        DrawText(label.c_str(), x + 10, y + 10, kLabelFontSize, p.textPrimary);
+    }
 }
 
 void Canvas::drawArrow(int x1, int y1, int x2, int y2) const {
-    Color color = textColor(darkTheme_);
-    DrawLine(x1, y1, x2, y2, color);
-    DrawCircle(x2, y2, 4, color);
+    const Palette& p = GetPalette(darkTheme_);
+    DrawLineEx(Vector2{static_cast<float>(x1), static_cast<float>(y1)},
+               Vector2{static_cast<float>(x2), static_cast<float>(y2)}, 2.0f, p.accentOwned);
+    DrawCircle(x2, y2, 4, p.accentOwned);
 }
 
 void Canvas::drawText(const std::string& text, int x, int y) const {
-    DrawText(text.c_str(), x, y, 16, textColor(darkTheme_));
+    const Palette& p = GetPalette(darkTheme_);
+    if (font_.texture.id != 0) {
+        DrawTextEx(font_, text.c_str(), Vector2{static_cast<float>(x), static_cast<float>(y)},
+                   static_cast<float>(kLabelFontSize), 0.0f, p.textPrimary);
+    } else {
+        DrawText(text.c_str(), x, y, kLabelFontSize, p.textPrimary);
+    }
 }
 
 }  // namespace underhood

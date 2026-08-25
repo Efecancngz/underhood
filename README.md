@@ -23,3 +23,5 @@ cmake --build build --parallel
 
 ## License
 MIT — see [LICENSE](LICENSE)
+
+Bundles the [Inter](https://github.com/rsms/inter) typeface (SIL Open Font License 1.1 — see [assets/fonts/Inter-OFL.txt](assets/fonts/Inter-OFL.txt)).
