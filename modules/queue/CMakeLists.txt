@@ -1,0 +1,3 @@
+add_library(underhood_module_queue OBJECT queue_module.cpp)
+target_include_directories(underhood_module_queue PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(underhood_module_queue PUBLIC underhood_core)

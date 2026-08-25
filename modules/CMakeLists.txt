@@ -13,3 +13,7 @@ endif()
 if(BUILD_MODULE_STACK)
   add_subdirectory(stack)
 endif()
+
+if(BUILD_MODULE_QUEUE)
+  add_subdirectory(queue)
+endif()
