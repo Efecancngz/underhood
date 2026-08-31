@@ -10,7 +10,7 @@ C++17 · CMake · raylib · Dear ImGui (via rlImGui) · Catch2
 
 ## Quick start
 ```bash
-git clone <repo-url>
+git clone https://github.com/Efecancngz/underhood.git
 cd underhood
 cmake -S . -B build
 cmake --build build --parallel
